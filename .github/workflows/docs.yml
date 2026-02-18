@@ -1,0 +1,172 @@
+# Documentation Pipeline
+#
+# Reusable workflow for building and deploying documentation.
+# Supports Rust (rustdoc), Python (mkdocs/sphinx), and static sites.
+#
+# Usage:
+#   jobs:
+#     docs:
+#       uses: sebastienrousseau/pipelines/.github/workflows/docs.yml@main
+#       with:
+#         type: rust
+
+name: Documentation
+
+on:
+  workflow_call:
+    inputs:
+      type:
+        description: 'Documentation type (rust, python-mkdocs, python-sphinx, static)'
+        required: true
+        type: string
+      deploy:
+        description: 'Deploy to GitHub Pages'
+        required: false
+        type: boolean
+        default: true
+      working-directory:
+        description: 'Working directory'
+        required: false
+        type: string
+        default: '.'
+      output-directory:
+        description: 'Output directory for built docs'
+        required: false
+        type: string
+        default: ''
+      python-version:
+        description: 'Python version (for Python docs)'
+        required: false
+        type: string
+        default: '3.11'
+
+jobs:
+  build-rust:
+    name: Build Rust Docs
+    runs-on: ubuntu-latest
+    if: ${{ inputs.type == 'rust' }}
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Rust
+        uses: dtolnay/rust-action@stable
+
+      - name: Build documentation
+        working-directory: ${{ inputs.working-directory }}
+        run: |
+          cargo doc --no-deps --all-features
+          echo '<meta http-equiv="refresh" content="0; url=YOUR_CRATE_NAME/index.html">' > target/doc/index.html
+
+      - name: Upload artifact
+        uses: actions/upload-pages-artifact@v3
+        with:
+          path: ${{ inputs.working-directory }}/target/doc
+
+  build-mkdocs:
+    name: Build MkDocs
+    runs-on: ubuntu-latest
+    if: ${{ inputs.type == 'python-mkdocs' }}
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: ${{ inputs.python-version }}
+
+      - name: Install dependencies
+        working-directory: ${{ inputs.working-directory }}
+        run: |
+          pip install mkdocs mkdocs-material mkdocstrings[python]
+          if [ -f requirements-docs.txt ]; then
+            pip install -r requirements-docs.txt
+          fi
+
+      - name: Build documentation
+        working-directory: ${{ inputs.working-directory }}
+        run: mkdocs build
+
+      - name: Upload artifact
+        uses: actions/upload-pages-artifact@v3
+        with:
+          path: ${{ inputs.working-directory }}/site
+
+  build-sphinx:
+    name: Build Sphinx
+    runs-on: ubuntu-latest
+    if: ${{ inputs.type == 'python-sphinx' }}
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: ${{ inputs.python-version }}
+
+      - name: Install dependencies
+        working-directory: ${{ inputs.working-directory }}
+        run: |
+          pip install sphinx sphinx-rtd-theme
+          if [ -f requirements-docs.txt ]; then
+            pip install -r requirements-docs.txt
+          fi
+          if [ -f docs/requirements.txt ]; then
+            pip install -r docs/requirements.txt
+          fi
+
+      - name: Build documentation
+        working-directory: ${{ inputs.working-directory }}
+        run: |
+          cd docs
+          make html
+
+      - name: Upload artifact
+        uses: actions/upload-pages-artifact@v3
+        with:
+          path: ${{ inputs.working-directory }}/docs/_build/html
+
+  build-static:
+    name: Build Static
+    runs-on: ubuntu-latest
+    if: ${{ inputs.type == 'static' }}
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Upload artifact
+        uses: actions/upload-pages-artifact@v3
+        with:
+          path: ${{ inputs.output-directory || inputs.working-directory }}
+
+  deploy:
+    name: Deploy to GitHub Pages
+    runs-on: ubuntu-latest
+    needs: [build-rust, build-mkdocs, build-sphinx, build-static]
+    if: |
+      always() &&
+      inputs.deploy &&
+      github.ref == 'refs/heads/main' &&
+      (needs.build-rust.result == 'success' ||
+       needs.build-mkdocs.result == 'success' ||
+       needs.build-sphinx.result == 'success' ||
+       needs.build-static.result == 'success')
+
+    permissions:
+      pages: write
+      id-token: write
+
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+
+    steps:
+      - name: Deploy to GitHub Pages
+        id: deployment
+        uses: actions/deploy-pages@v4

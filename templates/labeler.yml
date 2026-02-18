@@ -1,0 +1,95 @@
+# PR Labeler Configuration Template
+#
+# Copy this file to .github/labeler.yml in your repository.
+# Labels are applied based on which files are changed.
+
+# Documentation
+documentation:
+  - changed-files:
+      - any-glob-to-any-file:
+          - '**/*.md'
+          - 'docs/**'
+          - '.github/**/*.md'
+
+# Rust
+rust:
+  - changed-files:
+      - any-glob-to-any-file:
+          - '**/*.rs'
+          - 'Cargo.toml'
+          - 'Cargo.lock'
+
+# Python
+python:
+  - changed-files:
+      - any-glob-to-any-file:
+          - '**/*.py'
+          - 'pyproject.toml'
+          - 'setup.py'
+          - 'requirements*.txt'
+
+# JavaScript/TypeScript
+javascript:
+  - changed-files:
+      - any-glob-to-any-file:
+          - '**/*.js'
+          - '**/*.jsx'
+          - '**/*.ts'
+          - '**/*.tsx'
+          - 'package.json'
+          - 'package-lock.json'
+          - 'pnpm-lock.yaml'
+
+# CI/CD
+ci:
+  - changed-files:
+      - any-glob-to-any-file:
+          - '.github/workflows/**'
+          - '.github/actions/**'
+
+# Configuration
+config:
+  - changed-files:
+      - any-glob-to-any-file:
+          - '**/*.yml'
+          - '**/*.yaml'
+          - '**/*.toml'
+          - '**/*.json'
+          - '!package*.json'
+          - '!Cargo.toml'
+
+# Tests
+tests:
+  - changed-files:
+      - any-glob-to-any-file:
+          - '**/tests/**'
+          - '**/test_*.py'
+          - '**/*_test.rs'
+          - '**/*.test.ts'
+          - '**/*.spec.ts'
+
+# Docker
+docker:
+  - changed-files:
+      - any-glob-to-any-file:
+          - 'Dockerfile*'
+          - 'docker-compose*.yml'
+          - '.dockerignore'
+
+# Dependencies
+dependencies:
+  - changed-files:
+      - any-glob-to-any-file:
+          - 'Cargo.lock'
+          - 'package-lock.json'
+          - 'pnpm-lock.yaml'
+          - 'yarn.lock'
+          - 'requirements*.txt'
+
+# Security
+security:
+  - changed-files:
+      - any-glob-to-any-file:
+          - '**/security/**'
+          - 'SECURITY.md'
+          - '.github/workflows/security*.yml'

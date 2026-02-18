@@ -1,0 +1,54 @@
+# OS files
+.DS_Store
+.DS_Store?
+._*
+.Spotlight-V100
+.Trashes
+ehthumbs.db
+Thumbs.db
+
+# Editor files
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# Logs
+*.log
+logs/
+
+# Temporary files
+*.tmp
+*.temp
+tmp/
+temp/
+
+# Build artifacts
+dist/
+build/
+target/
+node_modules/
+
+# Docker
+.dockerignore
+
+# Secrets (should never be committed)
+*.key
+*.pem
+*.p12
+*.crt
+secrets/
+.env
+.env.local
+.env.*.local
+
+# Terraform
+*.tfstate
+*.tfstate.backup
+.terraform/
+terraform.tfvars
+
+# Kubernetes
+kubeconfig
+*.kubeconfig

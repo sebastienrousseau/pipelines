@@ -1,0 +1,22 @@
+name: Rust CI
+
+on:
+  workflow_call:
+    inputs:
+      rust-version:
+        description: 'Rust toolchain version'
+        default: 'stable'
+        type: string
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@master
+        with:
+          toolchain: ${{ inputs.rust-version }}
+          components: clippy, rustfmt
+      - run: cargo fmt --check
+      - run: cargo clippy -- -D warnings
+      - run: cargo test

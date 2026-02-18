@@ -1,0 +1,176 @@
+name: Python CI
+
+on:
+  workflow_call:
+    inputs:
+      python-version:
+        description: 'Python version'
+        default: '3.11'
+        type: string
+      run-mypy:
+        description: 'Run type checking'
+        default: true
+        type: boolean
+      run-ruff:
+        description: 'Run ruff linting'
+        default: true
+        type: boolean
+      coverage-threshold:
+        description: 'Minimum coverage percentage'
+        default: 80
+        type: number
+      package-manager:
+        description: 'Package manager (poetry, pip, uv)'
+        default: 'poetry'
+        type: string
+
+jobs:
+  lint:
+    name: Lint
+    runs-on: ubuntu-latest
+    if: ${{ inputs.run-ruff }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: ${{ inputs.python-version }}
+
+      - name: Install ruff
+        run: pip install ruff
+
+      - name: Run ruff check
+        run: ruff check .
+
+      - name: Run ruff format check
+        run: ruff format --check .
+
+  typecheck:
+    name: Type Check
+    runs-on: ubuntu-latest
+    if: ${{ inputs.run-mypy }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: ${{ inputs.python-version }}
+
+      - name: Install dependencies
+        run: |
+          if [ "${{ inputs.package-manager }}" = "poetry" ]; then
+            pip install poetry
+            poetry install
+          elif [ "${{ inputs.package-manager }}" = "uv" ]; then
+            pip install uv
+            uv pip install -e ".[dev]"
+          else
+            pip install -e ".[dev]"
+          fi
+
+      - name: Install mypy
+        run: pip install mypy
+
+      - name: Run mypy
+        run: |
+          if [ -d "src" ]; then
+            mypy src/
+          else
+            mypy .
+          fi
+
+  test:
+    name: Test
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        python-version: ['3.9', '3.10', '3.11', '3.12']
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Python ${{ matrix.python-version }}
+        uses: actions/setup-python@v5
+        with:
+          python-version: ${{ matrix.python-version }}
+
+      - name: Install dependencies
+        run: |
+          if [ "${{ inputs.package-manager }}" = "poetry" ]; then
+            pip install poetry
+            poetry install
+          elif [ "${{ inputs.package-manager }}" = "uv" ]; then
+            pip install uv
+            uv pip install -e ".[dev]"
+          else
+            pip install -e ".[dev]"
+          fi
+
+      - name: Run tests
+        run: |
+          if [ "${{ inputs.package-manager }}" = "poetry" ]; then
+            poetry run pytest
+          else
+            pytest
+          fi
+
+  coverage:
+    name: Coverage
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: ${{ inputs.python-version }}
+
+      - name: Install dependencies
+        run: |
+          if [ "${{ inputs.package-manager }}" = "poetry" ]; then
+            pip install poetry
+            poetry install
+          elif [ "${{ inputs.package-manager }}" = "uv" ]; then
+            pip install uv
+            uv pip install -e ".[dev]"
+          else
+            pip install -e ".[dev]"
+          fi
+          pip install pytest-cov
+
+      - name: Run tests with coverage
+        run: |
+          if [ "${{ inputs.package-manager }}" = "poetry" ]; then
+            poetry run pytest --cov --cov-report=xml --cov-fail-under=${{ inputs.coverage-threshold }}
+          else
+            pytest --cov --cov-report=xml --cov-fail-under=${{ inputs.coverage-threshold }}
+          fi
+
+      - name: Upload coverage
+        uses: codecov/codecov-action@v4
+        with:
+          files: coverage.xml
+          fail_ci_if_error: true
+
+  security:
+    name: Security
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: ${{ inputs.python-version }}
+
+      - name: Install bandit
+        run: pip install bandit
+
+      - name: Run bandit
+        run: |
+          if [ -d "src" ]; then
+            bandit -r src/ -ll
+          else
+            bandit -r . -ll --exclude ./tests,./venv,./.venv
+          fi

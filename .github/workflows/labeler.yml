@@ -1,0 +1,62 @@
+# PR Labeler Pipeline
+#
+# Automatically labels pull requests based on file paths.
+# Copy .github/labeler.yml to your repository to configure labels.
+#
+# Usage:
+#   jobs:
+#     label:
+#       uses: sebastienrousseau/pipelines/.github/workflows/labeler.yml@main
+
+name: PR Labeler
+
+on:
+  workflow_call:
+    inputs:
+      config-path:
+        description: 'Path to labeler config'
+        required: false
+        type: string
+        default: '.github/labeler.yml'
+
+jobs:
+  label:
+    name: Label PR
+    runs-on: ubuntu-latest
+
+    permissions:
+      contents: read
+      pull-requests: write
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Label PR
+        uses: actions/labeler@v5
+        with:
+          configuration-path: ${{ inputs.config-path }}
+          sync-labels: true
+
+  size:
+    name: Size Label
+    runs-on: ubuntu-latest
+
+    permissions:
+      pull-requests: write
+
+    steps:
+      - name: Label PR size
+        uses: codelytv/pr-size-labeler@v1
+        with:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          xs_label: 'size/xs'
+          xs_max_size: 10
+          s_label: 'size/s'
+          s_max_size: 100
+          m_label: 'size/m'
+          m_max_size: 500
+          l_label: 'size/l'
+          l_max_size: 1000
+          xl_label: 'size/xl'
+          fail_if_xl: false

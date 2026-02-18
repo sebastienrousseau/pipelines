@@ -12,8 +12,13 @@ Pipelines provides standardized continuous integration and deployment configurat
 |----------|---------|-----------|
 | `rust-ci.yml` | Build, test, lint, audit | Rust |
 | `python-ci.yml` | Test, lint, type check, coverage | Python |
+| `node-ci.yml` | Lint, type check, test, build | Node.js/TypeScript |
 | `release.yml` | Automated releases | Rust, Python, Node |
 | `security.yml` | Security scanning | All |
+| `docker.yml` | Build and push Docker images | All |
+| `docs.yml` | Build and deploy documentation | All |
+| `labeler.yml` | Auto-label pull requests | All |
+| `stale.yml` | Mark stale issues/PRs | All |
 
 ## Quick Start
 
@@ -47,6 +52,58 @@ jobs:
     with:
       python-version: "3.11"
       coverage-threshold: 80
+```
+
+### Node.js Projects
+
+```yaml
+# .github/workflows/ci.yml
+name: CI
+
+on: [push, pull_request]
+
+jobs:
+  ci:
+    uses: sebastienrousseau/pipelines/.github/workflows/node-ci.yml@main
+    with:
+      node-version: "20"
+      package-manager: "pnpm"
+```
+
+### Docker Builds
+
+```yaml
+# .github/workflows/docker.yml
+name: Docker
+
+on:
+  push:
+    branches: [main]
+    tags: ['v*']
+
+jobs:
+  docker:
+    uses: sebastienrousseau/pipelines/.github/workflows/docker.yml@main
+    with:
+      image-name: my-app
+      platforms: linux/amd64,linux/arm64
+```
+
+### Documentation
+
+```yaml
+# .github/workflows/docs.yml
+name: Docs
+
+on:
+  push:
+    branches: [main]
+
+jobs:
+  docs:
+    uses: sebastienrousseau/pipelines/.github/workflows/docs.yml@main
+    with:
+      type: rust  # or python-mkdocs, python-sphinx, static
 ```
 
 ### Security Scanning
@@ -88,6 +145,36 @@ jobs:
       CRATES_TOKEN: ${{ secrets.CRATES_TOKEN }}
 ```
 
+### PR Labeling
+
+```yaml
+# .github/workflows/labeler.yml
+name: Labeler
+
+on:
+  pull_request:
+    types: [opened, synchronize]
+
+jobs:
+  label:
+    uses: sebastienrousseau/pipelines/.github/workflows/labeler.yml@main
+```
+
+### Stale Issues
+
+```yaml
+# .github/workflows/stale.yml
+name: Stale
+
+on:
+  schedule:
+    - cron: '0 0 * * *'  # Daily
+
+jobs:
+  stale:
+    uses: sebastienrousseau/pipelines/.github/workflows/stale.yml@main
+```
+
 ## Workflow Inputs
 
 ### rust-ci.yml
@@ -112,6 +199,35 @@ jobs:
 | `coverage-threshold` | number | `80` | Minimum coverage % |
 | `package-manager` | string | `poetry` | poetry, pip, or uv |
 
+### node-ci.yml
+
+| Input | Type | Default | Description |
+|-------|------|---------|-------------|
+| `node-version` | string | `20` | Node.js version |
+| `package-manager` | string | `pnpm` | npm, pnpm, or yarn |
+| `run-lint` | boolean | `true` | Run linting |
+| `run-typecheck` | boolean | `true` | Run type checking |
+| `run-tests` | boolean | `true` | Run tests |
+| `run-build` | boolean | `true` | Run build |
+
+### docker.yml
+
+| Input | Type | Default | Description |
+|-------|------|---------|-------------|
+| `image-name` | string | required | Docker image name |
+| `dockerfile` | string | `Dockerfile` | Path to Dockerfile |
+| `platforms` | string | `linux/amd64,linux/arm64` | Target platforms |
+| `push` | boolean | `true` | Push to registry |
+| `registry` | string | `ghcr.io` | Container registry |
+
+### docs.yml
+
+| Input | Type | Default | Description |
+|-------|------|---------|-------------|
+| `type` | string | required | rust, python-mkdocs, python-sphinx, static |
+| `deploy` | boolean | `true` | Deploy to GitHub Pages |
+| `working-directory` | string | `.` | Working directory |
+
 ### release.yml
 
 | Input | Type | Default | Description |
@@ -127,6 +243,13 @@ jobs:
 | `fail-on-vulnerability` | boolean | `true` | Fail on findings |
 | `severity-threshold` | string | `medium` | low, medium, high, critical |
 
+## Templates
+
+Copy these templates to your repository:
+
+- `templates/dependabot.yml` → `.github/dependabot.yml`
+- `templates/labeler.yml` → `.github/labeler.yml`
+
 ## Required Secrets
 
 | Secret | Used By | Purpose |
@@ -135,6 +258,8 @@ jobs:
 | `PYPI_TOKEN` | release.yml | Publish to PyPI |
 | `NPM_TOKEN` | release.yml | Publish to npm |
 | `CODECOV_TOKEN` | *-ci.yml | Upload coverage (optional) |
+| `DOCKER_USERNAME` | docker.yml | Docker Hub auth |
+| `DOCKER_PASSWORD` | docker.yml | Docker Hub auth |
 
 ## Best Practices
 
@@ -148,6 +273,8 @@ jobs:
 3. **Run security scans** on schedule and PRs
 
 4. **Set appropriate coverage thresholds**
+
+5. **Use Dependabot** for dependency updates
 
 ## License
 

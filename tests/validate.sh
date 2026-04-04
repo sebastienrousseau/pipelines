@@ -18,7 +18,7 @@ check "yamllint examples" "yamllint -d '{extends: default, rules: {line-length: 
 
 echo ""
 echo "=== 2. actionlint ==="
-check "actionlint passes" "actionlint"
+check "actionlint passes" "command -v actionlint >/dev/null && actionlint || \"$(go env GOPATH 2>/dev/null)/bin/actionlint\""
 
 echo ""
 echo "=== 3. Supply Chain: SHA Pinning ==="

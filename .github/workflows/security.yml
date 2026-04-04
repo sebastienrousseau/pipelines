@@ -4,7 +4,7 @@ on:
   workflow_call:
     inputs:
       language:
-        description: 'Project language (rust, python, node, auto)'
+        description: 'Project language (rust, python, node, go, auto)'
         default: 'auto'
         type: string
       fail-on-vulnerability:
@@ -15,76 +15,136 @@ on:
         description: 'Minimum severity to report (low, medium, high, critical)'
         default: 'medium'
         type: string
+      runner:
+        description: 'Runner label (e.g. ubuntu-latest, ubuntu-24.04-arm)'
+        default: 'ubuntu-latest'
+        type: string
+
+permissions: {}
 
 jobs:
   detect-language:
     name: Detect Language
     runs-on: ubuntu-latest
+    timeout-minutes: 2
+    permissions:
+      contents: read
     outputs:
       language: ${{ steps.detect.outputs.language }}
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
+        with:
+          sparse-checkout: |
+            Cargo.toml
+            pyproject.toml
+            requirements.txt
+            package.json
+            go.mod
+          sparse-checkout-cone-mode: false
+          persist-credentials: false
+          show-progress: false
 
       - name: Detect language
         id: detect
         run: |
           if [ "${{ inputs.language }}" != "auto" ]; then
-            echo "language=${{ inputs.language }}" >> $GITHUB_OUTPUT
+            echo "language=${{ inputs.language }}" >> "$GITHUB_OUTPUT"
           elif [ -f "Cargo.toml" ]; then
-            echo "language=rust" >> $GITHUB_OUTPUT
+            echo "language=rust" >> "$GITHUB_OUTPUT"
+          elif [ -f "go.mod" ]; then
+            echo "language=go" >> "$GITHUB_OUTPUT"
           elif [ -f "pyproject.toml" ] || [ -f "requirements.txt" ]; then
-            echo "language=python" >> $GITHUB_OUTPUT
+            echo "language=python" >> "$GITHUB_OUTPUT"
           elif [ -f "package.json" ]; then
-            echo "language=node" >> $GITHUB_OUTPUT
+            echo "language=node" >> "$GITHUB_OUTPUT"
           else
-            echo "language=unknown" >> $GITHUB_OUTPUT
+            echo "language=unknown" >> "$GITHUB_OUTPUT"
           fi
 
   rust-audit:
     name: Rust Security Audit
-    runs-on: ubuntu-latest
+    runs-on: ${{ inputs.runner }}
     needs: detect-language
-    if: ${{ needs.detect-language.outputs.language == 'rust' }}
+    if: needs.detect-language.outputs.language == 'rust'
+    timeout-minutes: 10
+    permissions:
+      contents: read
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
+        with:
+          fetch-depth: 1
+          persist-credentials: false
+          show-progress: false
 
-      - name: Install cargo-audit
-        run: cargo install cargo-audit
+      - uses: taiki-e/install-action@1ed3272338f573e042a2e6bca3893aa19f43b47a # v2
+        with:
+          tool: cargo-audit
+      - uses: taiki-e/install-action@1ed3272338f573e042a2e6bca3893aa19f43b47a # v2
+        with:
+          tool: cargo-deny
 
       - name: Run cargo audit
         run: cargo audit --deny warnings
         continue-on-error: ${{ !inputs.fail-on-vulnerability }}
 
-      - name: Install cargo-deny
-        run: cargo install cargo-deny
-
       - name: Run cargo deny
         run: cargo deny check
         continue-on-error: true
 
+  go-audit:
+    name: Go Security Audit
+    runs-on: ${{ inputs.runner }}
+    needs: detect-language
+    if: needs.detect-language.outputs.language == 'go'
+    timeout-minutes: 10
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
+        with:
+          fetch-depth: 1
+          persist-credentials: false
+          show-progress: false
+
+      - uses: actions/setup-go@40f1582b2485089dde7abd97c1529aa768e1baff # v5
+        with:
+          go-version: 'stable'
+
+      - name: Install govulncheck
+        run: go install golang.org/x/vuln/cmd/govulncheck@latest
+
+      - name: Run govulncheck
+        run: govulncheck ./...
+        continue-on-error: ${{ !inputs.fail-on-vulnerability }}
+
   python-audit:
     name: Python Security Audit
-    runs-on: ubuntu-latest
+    runs-on: ${{ inputs.runner }}
     needs: detect-language
-    if: ${{ needs.detect-language.outputs.language == 'python' }}
+    if: needs.detect-language.outputs.language == 'python'
+    timeout-minutes: 10
+    permissions:
+      contents: read
     steps:
-      - uses: actions/checkout@v4
-
-      - name: Set up Python
-        uses: actions/setup-python@v5
+      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
         with:
-          python-version: '3.11'
+          fetch-depth: 1
+          persist-credentials: false
+          show-progress: false
+
+      - uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065 # v5
+        with:
+          python-version: '3.12'
 
       - name: Install tools
-        run: |
-          pip install safety bandit pip-audit
+        run: pip install --no-cache-dir pip-audit bandit
 
       - name: Run pip-audit
         run: |
           if [ -f "requirements.txt" ]; then
             pip-audit -r requirements.txt
           elif [ -f "pyproject.toml" ]; then
-            pip install poetry
+            pip install --no-cache-dir poetry
             poetry export -f requirements.txt --output /tmp/requirements.txt
             pip-audit -r /tmp/requirements.txt
           fi
@@ -93,73 +153,72 @@ jobs:
       - name: Run bandit
         run: |
           if [ -d "src" ]; then
-            bandit -r src/ -f json -o bandit-report.json || true
             bandit -r src/ -ll
           else
-            bandit -r . -f json -o bandit-report.json --exclude ./tests,./venv,./.venv || true
             bandit -r . -ll --exclude ./tests,./venv,./.venv
           fi
         continue-on-error: ${{ !inputs.fail-on-vulnerability }}
 
-      - name: Upload bandit report
-        uses: actions/upload-artifact@v4
-        with:
-          name: bandit-report
-          path: bandit-report.json
-        if: always()
-
   node-audit:
     name: Node Security Audit
-    runs-on: ubuntu-latest
+    runs-on: ${{ inputs.runner }}
     needs: detect-language
-    if: ${{ needs.detect-language.outputs.language == 'node' }}
+    if: needs.detect-language.outputs.language == 'node'
+    timeout-minutes: 10
+    permissions:
+      contents: read
     steps:
-      - uses: actions/checkout@v4
-
-      - name: Setup Node
-        uses: actions/setup-node@v4
+      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
         with:
-          node-version: '20'
-
-      - name: Setup pnpm
-        uses: pnpm/action-setup@v2
-        with:
-          version: 8
-
-      - name: Install dependencies
-        run: pnpm install
+          fetch-depth: 1
+          persist-credentials: false
+          show-progress: false
 
       - name: Run npm audit
-        run: pnpm audit --audit-level=${{ inputs.severity-threshold }}
+        run: npm audit --audit-level=${{ inputs.severity-threshold }}
         continue-on-error: ${{ !inputs.fail-on-vulnerability }}
 
   codeql:
     name: CodeQL Analysis
     runs-on: ubuntu-latest
+    needs: detect-language
+    if: needs.detect-language.outputs.language != 'unknown'
+    timeout-minutes: 30
     permissions:
       security-events: write
+      contents: read
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
+        with:
+          fetch-depth: 1
+          persist-credentials: false
+          show-progress: false
 
       - name: Initialize CodeQL
-        uses: github/codeql-action/init@v3
+        uses: github/codeql-action/init@5c8a8a642e79153f5d047b10ec1cba1d1cc65699 # v3
         with:
           languages: ${{ needs.detect-language.outputs.language == 'node' && 'javascript' || needs.detect-language.outputs.language }}
 
       - name: Autobuild
-        uses: github/codeql-action/autobuild@v3
+        uses: github/codeql-action/autobuild@5c8a8a642e79153f5d047b10ec1cba1d1cc65699 # v3
 
       - name: Perform CodeQL Analysis
-        uses: github/codeql-action/analyze@v3
+        uses: github/codeql-action/analyze@5c8a8a642e79153f5d047b10ec1cba1d1cc65699 # v3
 
   dependency-review:
     name: Dependency Review
     runs-on: ubuntu-latest
     if: github.event_name == 'pull_request'
+    timeout-minutes: 5
+    permissions:
+      contents: read
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
+        with:
+          fetch-depth: 1
+          persist-credentials: false
+          show-progress: false
 
-      - name: Dependency Review
-        uses: actions/dependency-review-action@v4
+      - uses: actions/dependency-review-action@2031cfc080254a8a887f58cffee85186f0e49e48 # v4
         with:
           fail-on-severity: ${{ inputs.severity-threshold }}

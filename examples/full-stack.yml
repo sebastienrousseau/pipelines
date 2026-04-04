@@ -1,0 +1,58 @@
+# Example: Full CI/CD pipeline combining all workflows
+name: Full CI/CD
+
+on:
+  push:
+    branches: [main]
+    tags: ['v*']
+  pull_request:
+  schedule:
+    - cron: '0 0 * * 0'  # Weekly security scan
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  # ─── CI ─────────────────────────────────────────────────────
+  ci:
+    uses: sebastienrousseau/pipelines/.github/workflows/rust-ci.yml@main
+    with:
+      run-coverage: true
+      # runner: 'ubuntu-24.04-arm'  # 39% cheaper ARM64 runner
+    secrets:
+      CODECOV_TOKEN: ${{ secrets.CODECOV_TOKEN }}
+
+  # ─── Security ──────────────────────────────────────────────
+  security:
+    uses: sebastienrousseau/pipelines/.github/workflows/security.yml@main
+    with:
+      fail-on-vulnerability: true
+
+  # ─── Docs (main branch only) ───────────────────────────────
+  docs:
+    if: github.ref == 'refs/heads/main'
+    needs: ci
+    uses: sebastienrousseau/pipelines/.github/workflows/docs.yml@main
+    with:
+      type: rust
+
+  # ─── Release (tags only) ───────────────────────────────────
+  release:
+    if: startsWith(github.ref, 'refs/tags/v')
+    needs: [ci, security]
+    uses: sebastienrousseau/pipelines/.github/workflows/release.yml@main
+    with:
+      language: rust
+    secrets:
+      CRATES_TOKEN: ${{ secrets.CRATES_TOKEN }}
+
+  # ─── PR Labels ─────────────────────────────────────────────
+  label:
+    if: github.event_name == 'pull_request'
+    uses: sebastienrousseau/pipelines/.github/workflows/labeler.yml@main
+
+  # ─── Stale (scheduled only) ────────────────────────────────
+  stale:
+    if: github.event_name == 'schedule'
+    uses: sebastienrousseau/pipelines/.github/workflows/stale.yml@main

@@ -1,0 +1,43 @@
+# Self-validation for the pipelines repository.
+# Ensures all workflow YAML is syntactically valid.
+
+name: Validate
+
+on:
+  push:
+    paths:
+      - '.github/workflows/**'
+      - 'templates/**'
+  pull_request:
+    paths:
+      - '.github/workflows/**'
+      - 'templates/**'
+
+permissions: {}
+
+jobs:
+  validate:
+    name: Validate Workflows
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
+        with:
+          fetch-depth: 1
+          persist-credentials: false
+          show-progress: false
+
+      - name: actionlint
+        run: |
+          bash <(curl -s https://raw.githubusercontent.com/rhysd/actionlint/main/scripts/download-bash.sh)
+          ./actionlint -color
+
+      - name: yamllint
+        run: |
+          pip install --no-cache-dir yamllint
+          yamllint -d '{extends: default, rules: {line-length: {max: 200}, truthy: disable, comments-indentation: disable, document-start: disable}}' .github/workflows/ templates/
+
+      - name: Structural tests
+        run: bash tests/validate.sh

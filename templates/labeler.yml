@@ -40,6 +40,14 @@ javascript:
           - 'package-lock.json'
           - 'pnpm-lock.yaml'
 
+# Go
+go:
+  - changed-files:
+      - any-glob-to-any-file:
+          - '**/*.go'
+          - 'go.mod'
+          - 'go.sum'
+
 # CI/CD
 ci:
   - changed-files:

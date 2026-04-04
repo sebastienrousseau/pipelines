@@ -1,0 +1,21 @@
+# Example: Docker build with Sigstore signing
+name: Docker
+
+on:
+  push:
+    branches: [main]
+    tags: ['v*']
+
+jobs:
+  docker:
+    uses: sebastienrousseau/pipelines/.github/workflows/docker.yml@main
+    with:
+      image-name: my-app
+      platforms: linux/amd64,linux/arm64
+    # Sigstore signing requires id-token permission from the caller
+    permissions:
+      contents: read
+      packages: write
+      id-token: write
+      attestations: write
+      security-events: write

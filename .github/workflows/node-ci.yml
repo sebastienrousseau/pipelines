@@ -1,14 +1,14 @@
 # Node.js / TypeScript CI Pipeline
 #
 # Reusable workflow for Node.js/TypeScript projects.
-# Includes linting, type checking, testing, and building.
+# Single consolidated job: lint, type check, test, build.
 #
 # Usage:
 #   jobs:
 #     ci:
 #       uses: sebastienrousseau/pipelines/.github/workflows/node-ci.yml@main
 #       with:
-#         node-version: '20'
+#         node-version: '22'
 
 name: Node.js CI
 
@@ -17,70 +17,78 @@ on:
     inputs:
       node-version:
         description: 'Node.js version to use'
-        required: false
+        default: '22'
         type: string
-        default: '20'
       package-manager:
         description: 'Package manager (npm, pnpm, yarn)'
-        required: false
-        type: string
         default: 'pnpm'
+        type: string
       working-directory:
         description: 'Working directory'
-        required: false
-        type: string
         default: '.'
+        type: string
       run-lint:
         description: 'Run linting'
-        required: false
-        type: boolean
         default: true
+        type: boolean
       run-typecheck:
         description: 'Run type checking'
-        required: false
-        type: boolean
         default: true
+        type: boolean
       run-tests:
         description: 'Run tests'
-        required: false
-        type: boolean
         default: true
+        type: boolean
       run-build:
         description: 'Run build'
-        required: false
-        type: boolean
         default: true
+        type: boolean
       test-coverage:
         description: 'Generate test coverage'
-        required: false
-        type: boolean
         default: false
+        type: boolean
+      runner:
+        description: 'Runner label (e.g. ubuntu-latest, ubuntu-24.04-arm)'
+        default: 'ubuntu-latest'
+        type: string
+      timeout-minutes:
+        description: 'Timeout for the CI job'
+        default: 15
+        type: number
     secrets:
-      NPM_TOKEN:
-        description: 'NPM authentication token'
+      CODECOV_TOKEN:
+        description: 'Codecov upload token'
         required: false
+
+permissions: {}
 
 env:
   CI: true
+  NODE_OPTIONS: '--max-old-space-size=2048'
 
 jobs:
-  lint:
-    name: Lint
-    runs-on: ubuntu-latest
-    if: ${{ inputs.run-lint }}
+  ci:
+    name: CI
+    runs-on: ${{ inputs.runner }}
+    timeout-minutes: ${{ inputs.timeout-minutes }}
+    permissions:
+      contents: read
 
     steps:
-      - name: Checkout
-        uses: actions/checkout@v4
+      - uses: actions/checkout@93cb6efe18208431cddfb8368fd83d5badbf9bfd # v5
+        with:
+          fetch-depth: 1
+          persist-credentials: false
+          show-progress: false
 
       - name: Setup pnpm
-        if: ${{ inputs.package-manager == 'pnpm' }}
-        uses: pnpm/action-setup@v2
+        if: inputs.package-manager == 'pnpm'
+        uses: pnpm/action-setup@eae0cfeb286e66ffb5155f1a79b90583a127a68b # v2
         with:
-          version: 8
+          version: 9
 
       - name: Setup Node.js
-        uses: actions/setup-node@v4
+        uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
         with:
           node-version: ${{ inputs.node-version }}
           cache: ${{ inputs.package-manager }}
@@ -88,179 +96,68 @@ jobs:
       - name: Install dependencies
         working-directory: ${{ inputs.working-directory }}
         run: |
-          if [ "${{ inputs.package-manager }}" = "pnpm" ]; then
-            pnpm install --frozen-lockfile
-          elif [ "${{ inputs.package-manager }}" = "yarn" ]; then
-            yarn install --frozen-lockfile
-          else
-            npm ci
-          fi
+          case "${{ inputs.package-manager }}" in
+            pnpm) pnpm install --frozen-lockfile ;;
+            yarn) yarn install --frozen-lockfile ;;
+            *)    npm ci ;;
+          esac
 
-      - name: Run ESLint
+      - name: Lint
+        if: inputs.run-lint
         working-directory: ${{ inputs.working-directory }}
         run: |
-          if [ "${{ inputs.package-manager }}" = "pnpm" ]; then
-            pnpm lint
-          elif [ "${{ inputs.package-manager }}" = "yarn" ]; then
-            yarn lint
-          else
-            npm run lint
-          fi
+          case "${{ inputs.package-manager }}" in
+            pnpm) pnpm lint ;;
+            yarn) yarn lint ;;
+            *)    npm run lint ;;
+          esac
 
-  typecheck:
-    name: Type Check
-    runs-on: ubuntu-latest
-    if: ${{ inputs.run-typecheck }}
-
-    steps:
-      - name: Checkout
-        uses: actions/checkout@v4
-
-      - name: Setup pnpm
-        if: ${{ inputs.package-manager == 'pnpm' }}
-        uses: pnpm/action-setup@v2
-        with:
-          version: 8
-
-      - name: Setup Node.js
-        uses: actions/setup-node@v4
-        with:
-          node-version: ${{ inputs.node-version }}
-          cache: ${{ inputs.package-manager }}
-
-      - name: Install dependencies
+      - name: Type check
+        if: inputs.run-typecheck
         working-directory: ${{ inputs.working-directory }}
         run: |
-          if [ "${{ inputs.package-manager }}" = "pnpm" ]; then
-            pnpm install --frozen-lockfile
-          elif [ "${{ inputs.package-manager }}" = "yarn" ]; then
-            yarn install --frozen-lockfile
-          else
-            npm ci
-          fi
+          case "${{ inputs.package-manager }}" in
+            pnpm) pnpm typecheck || pnpm tsc --noEmit ;;
+            yarn) yarn typecheck || yarn tsc --noEmit ;;
+            *)    npm run typecheck || npx tsc --noEmit ;;
+          esac
 
-      - name: Run TypeScript
+      - name: Test
+        if: inputs.run-tests
         working-directory: ${{ inputs.working-directory }}
         run: |
-          if [ "${{ inputs.package-manager }}" = "pnpm" ]; then
-            pnpm typecheck || pnpm tsc --noEmit
-          elif [ "${{ inputs.package-manager }}" = "yarn" ]; then
-            yarn typecheck || yarn tsc --noEmit
-          else
-            npm run typecheck || npx tsc --noEmit
-          fi
-
-  test:
-    name: Test
-    runs-on: ubuntu-latest
-    if: ${{ inputs.run-tests }}
-
-    steps:
-      - name: Checkout
-        uses: actions/checkout@v4
-
-      - name: Setup pnpm
-        if: ${{ inputs.package-manager == 'pnpm' }}
-        uses: pnpm/action-setup@v2
-        with:
-          version: 8
-
-      - name: Setup Node.js
-        uses: actions/setup-node@v4
-        with:
-          node-version: ${{ inputs.node-version }}
-          cache: ${{ inputs.package-manager }}
-
-      - name: Install dependencies
-        working-directory: ${{ inputs.working-directory }}
-        run: |
-          if [ "${{ inputs.package-manager }}" = "pnpm" ]; then
-            pnpm install --frozen-lockfile
-          elif [ "${{ inputs.package-manager }}" = "yarn" ]; then
-            yarn install --frozen-lockfile
-          else
-            npm ci
-          fi
-
-      - name: Run tests
-        working-directory: ${{ inputs.working-directory }}
-        run: |
-          if [ "${{ inputs.test-coverage }}" = "true" ]; then
-            COVERAGE_FLAG="--coverage"
-          else
-            COVERAGE_FLAG=""
-          fi
-
-          if [ "${{ inputs.package-manager }}" = "pnpm" ]; then
-            pnpm test $COVERAGE_FLAG
-          elif [ "${{ inputs.package-manager }}" = "yarn" ]; then
-            yarn test $COVERAGE_FLAG
-          else
-            npm test -- $COVERAGE_FLAG
-          fi
+          ARGS=""
+          [ "${{ inputs.test-coverage }}" = "true" ] && ARGS="--coverage"
+          case "${{ inputs.package-manager }}" in
+            pnpm) pnpm test $ARGS ;;
+            yarn) yarn test $ARGS ;;
+            *)    npm test -- $ARGS ;;
+          esac
 
       - name: Upload coverage
-        if: ${{ inputs.test-coverage }}
-        uses: codecov/codecov-action@v3
+        if: inputs.test-coverage && inputs.run-tests
+        uses: codecov/codecov-action@75cd11691c0faa626561e295848008c8a7dddffe # v5
         with:
+          token: ${{ secrets.CODECOV_TOKEN }}
           directory: ${{ inputs.working-directory }}/coverage
-          fail_ci_if_error: false
-
-  build:
-    name: Build
-    runs-on: ubuntu-latest
-    if: ${{ inputs.run-build }}
-    needs: [lint, typecheck, test]
-    # Run even if some checks are skipped
-    if: |
-      always() &&
-      (needs.lint.result == 'success' || needs.lint.result == 'skipped') &&
-      (needs.typecheck.result == 'success' || needs.typecheck.result == 'skipped') &&
-      (needs.test.result == 'success' || needs.test.result == 'skipped')
-
-    steps:
-      - name: Checkout
-        uses: actions/checkout@v4
-
-      - name: Setup pnpm
-        if: ${{ inputs.package-manager == 'pnpm' }}
-        uses: pnpm/action-setup@v2
-        with:
-          version: 8
-
-      - name: Setup Node.js
-        uses: actions/setup-node@v4
-        with:
-          node-version: ${{ inputs.node-version }}
-          cache: ${{ inputs.package-manager }}
-
-      - name: Install dependencies
-        working-directory: ${{ inputs.working-directory }}
-        run: |
-          if [ "${{ inputs.package-manager }}" = "pnpm" ]; then
-            pnpm install --frozen-lockfile
-          elif [ "${{ inputs.package-manager }}" = "yarn" ]; then
-            yarn install --frozen-lockfile
-          else
-            npm ci
-          fi
 
       - name: Build
+        if: inputs.run-build
         working-directory: ${{ inputs.working-directory }}
         run: |
-          if [ "${{ inputs.package-manager }}" = "pnpm" ]; then
-            pnpm build
-          elif [ "${{ inputs.package-manager }}" = "yarn" ]; then
-            yarn build
-          else
-            npm run build
-          fi
+          case "${{ inputs.package-manager }}" in
+            pnpm) pnpm build ;;
+            yarn) yarn build ;;
+            *)    npm run build ;;
+          esac
 
       - name: Upload build artifacts
-        uses: actions/upload-artifact@v4
+        if: inputs.run-build
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
         with:
           name: build
           path: |
             ${{ inputs.working-directory }}/dist
             ${{ inputs.working-directory }}/build
           if-no-files-found: ignore
+          retention-days: 3

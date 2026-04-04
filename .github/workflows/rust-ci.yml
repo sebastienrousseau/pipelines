@@ -7,6 +7,10 @@ on:
         description: 'Rust toolchain version'
         default: 'stable'
         type: string
+      cargo-features:
+        description: 'Cargo features to enable (empty = --all-features)'
+        default: ''
+        type: string
       run-clippy:
         description: 'Run clippy linting'
         default: true
@@ -23,149 +27,185 @@ on:
         description: 'Generate coverage report'
         default: false
         type: boolean
-      coverage-threshold:
-        description: 'Minimum coverage percentage'
-        default: 80
-        type: number
-      cargo-features:
-        description: 'Cargo features to enable'
+      run-cross-platform:
+        description: 'Run tests on macOS and Windows'
+        default: false
+        type: boolean
+      coverage-exclude:
+        description: 'Files to exclude from coverage (comma-separated globs)'
         default: ''
         type: string
+      runner:
+        description: 'Runner label (e.g. ubuntu-latest, ubuntu-24.04-arm)'
+        default: 'ubuntu-latest'
+        type: string
+      timeout-minutes:
+        description: 'Timeout for the main check job'
+        default: 20
+        type: number
+    secrets:
+      CODECOV_TOKEN:
+        description: 'Codecov upload token'
+        required: false
+
+permissions: {}
 
 env:
   CARGO_TERM_COLOR: always
-  RUSTFLAGS: '-D warnings'
+  CARGO_INCREMENTAL: '0'
+  CARGO_NET_RETRY: 2
+  CARGO_REGISTRIES_CRATES_IO_PROTOCOL: sparse
+  RUST_BACKTRACE: short
 
 jobs:
   check:
-    name: Check
-    runs-on: ubuntu-latest
+    name: Check & Test
+    runs-on: ${{ inputs.runner }}
+    timeout-minutes: ${{ inputs.timeout-minutes }}
+    permissions:
+      contents: read
+    env:
+      CARGO_PROFILE_DEV_DEBUG: '0'
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@93cb6efe18208431cddfb8368fd83d5badbf9bfd # v5
+        with:
+          fetch-depth: 1
+          persist-credentials: false
+          show-progress: false
 
       - name: Install Rust
-        uses: dtolnay/rust-toolchain@master
+        uses: dtolnay/rust-toolchain@3c5f7ea28cd621ae0bf5283f0e981fb97b8a7af9 # master
         with:
           toolchain: ${{ inputs.rust-version }}
+          components: rustfmt, clippy
 
-      - name: Cache cargo
-        uses: Swatinem/rust-cache@v2
-
-      - name: Check
-        run: cargo check --all-features
-
-  fmt:
-    name: Format
-    runs-on: ubuntu-latest
-    if: ${{ inputs.run-fmt }}
-    steps:
-      - uses: actions/checkout@v4
-
-      - name: Install Rust
-        uses: dtolnay/rust-toolchain@master
+      - uses: Swatinem/rust-cache@e18b497796c12c097a38f9edb9d0641fb99eee32 # v2
         with:
-          toolchain: ${{ inputs.rust-version }}
-          components: rustfmt
+          save-if: ${{ github.ref == format('refs/heads/{0}', github.event.repository.default_branch) }}
 
-      - name: Check formatting
+      - name: Format
+        if: inputs.run-fmt
         run: cargo fmt --all -- --check
 
-  clippy:
-    name: Clippy
-    runs-on: ubuntu-latest
-    if: ${{ inputs.run-clippy }}
-    steps:
-      - uses: actions/checkout@v4
-
-      - name: Install Rust
-        uses: dtolnay/rust-toolchain@master
-        with:
-          toolchain: ${{ inputs.rust-version }}
-          components: clippy
-
-      - name: Cache cargo
-        uses: Swatinem/rust-cache@v2
-
       - name: Clippy
-        run: cargo clippy --all-features --all-targets -- -D warnings
-
-  test:
-    name: Test
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
-
-      - name: Install Rust
-        uses: dtolnay/rust-toolchain@master
-        with:
-          toolchain: ${{ inputs.rust-version }}
-
-      - name: Cache cargo
-        uses: Swatinem/rust-cache@v2
-
-      - name: Run tests
+        if: inputs.run-clippy
         run: |
           if [ -n "${{ inputs.cargo-features }}" ]; then
-            cargo test --features "${{ inputs.cargo-features }}"
+            cargo clippy --workspace --all-targets --no-deps --features "${{ inputs.cargo-features }}" -- -D warnings
           else
-            cargo test --all-features
+            cargo clippy --workspace --all-targets --no-deps --all-features -- -D warnings
           fi
 
-  audit:
-    name: Security Audit
-    runs-on: ubuntu-latest
-    if: ${{ inputs.run-audit }}
+      - name: Test
+        run: |
+          if [ -n "${{ inputs.cargo-features }}" ]; then
+            cargo test --workspace --features "${{ inputs.cargo-features }}"
+          else
+            cargo test --workspace --all-features
+          fi
+
+  cross:
+    name: Test (${{ matrix.os }})
+    if: inputs.run-cross-platform
+    needs: check
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: ${{ inputs.timeout-minutes }}
+    permissions:
+      contents: read
+    env:
+      CARGO_PROFILE_DEV_DEBUG: '0'
+    strategy:
+      fail-fast: true
+      matrix:
+        os: [macos-latest, windows-latest]
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@93cb6efe18208431cddfb8368fd83d5badbf9bfd # v5
+        with:
+          fetch-depth: 1
+          persist-credentials: false
+          show-progress: false
 
-      - name: Install cargo-audit
-        run: cargo install cargo-audit
+      - name: Install Rust
+        uses: dtolnay/rust-toolchain@3c5f7ea28cd621ae0bf5283f0e981fb97b8a7af9 # master
+        with:
+          toolchain: ${{ inputs.rust-version }}
 
-      - name: Run audit
-        run: cargo audit
+      - uses: Swatinem/rust-cache@e18b497796c12c097a38f9edb9d0641fb99eee32 # v2
+        with:
+          save-if: false
+
+      - name: Test
+        run: |
+          if [ -n "${{ inputs.cargo-features }}" ]; then
+            cargo test --workspace --features "${{ inputs.cargo-features }}"
+          else
+            cargo test --workspace --all-features
+          fi
+        shell: bash
+
+  audit:
+    name: Audit
+    if: inputs.run-audit
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@93cb6efe18208431cddfb8368fd83d5badbf9bfd # v5
+        with:
+          fetch-depth: 1
+          persist-credentials: false
+          show-progress: false
+      - uses: rustsec/audit-check@69366f33c96575abad1ee0dba8212993eecbe998 # v2.0.0
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }}
 
   coverage:
     name: Coverage
+    if: inputs.run-coverage
+    needs: check
     runs-on: ubuntu-latest
-    if: ${{ inputs.run-coverage }}
+    timeout-minutes: 30
+    permissions:
+      contents: read
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@93cb6efe18208431cddfb8368fd83d5badbf9bfd # v5
+        with:
+          fetch-depth: 1
+          persist-credentials: false
+          show-progress: false
 
       - name: Install Rust
-        uses: dtolnay/rust-toolchain@master
+        uses: dtolnay/rust-toolchain@3c5f7ea28cd621ae0bf5283f0e981fb97b8a7af9 # master
         with:
           toolchain: ${{ inputs.rust-version }}
 
-      - name: Install cargo-tarpaulin
-        run: cargo install cargo-tarpaulin
+      - uses: Swatinem/rust-cache@e18b497796c12c097a38f9edb9d0641fb99eee32 # v2
+        with:
+          save-if: false
 
-      - name: Cache cargo
-        uses: Swatinem/rust-cache@v2
+      - uses: taiki-e/install-action@1ed3272338f573e042a2e6bca3893aa19f43b47a # v2
+        with:
+          tool: cargo-tarpaulin
 
       - name: Generate coverage
-        run: cargo tarpaulin --out Xml --output-dir coverage
-
-      - name: Upload coverage
-        uses: codecov/codecov-action@v4
-        with:
-          files: coverage/cobertura.xml
-          fail_ci_if_error: true
-
-  docs:
-    name: Documentation
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
-
-      - name: Install Rust
-        uses: dtolnay/rust-toolchain@master
-        with:
-          toolchain: ${{ inputs.rust-version }}
-
-      - name: Cache cargo
-        uses: Swatinem/rust-cache@v2
-
-      - name: Build docs
-        run: cargo doc --all-features --no-deps
+        run: |
+          EXCLUDE_ARGS=""
+          if [ -n "${{ inputs.coverage-exclude }}" ]; then
+            IFS=',' read -ra PARTS <<< "${{ inputs.coverage-exclude }}"
+            for part in "${PARTS[@]}"; do
+              EXCLUDE_ARGS="$EXCLUDE_ARGS --exclude-files $(echo "$part" | xargs)"
+            done
+          fi
+          if [ -n "${{ inputs.cargo-features }}" ]; then
+            cargo tarpaulin --out Lcov --no-fail-fast --features "${{ inputs.cargo-features }}" ${EXCLUDE_ARGS:+"$EXCLUDE_ARGS"}
+          else
+            cargo tarpaulin --out Lcov --no-fail-fast --all-features ${EXCLUDE_ARGS:+"$EXCLUDE_ARGS"}
+          fi
         env:
-          RUSTDOCFLAGS: '-D warnings'
+          RUSTFLAGS: '-Ccodegen-units=1 -Clink-dead-code -Coverflow-checks=off'
+
+      - uses: codecov/codecov-action@75cd11691c0faa626561e295848008c8a7dddffe # v5
+        with:
+          token: ${{ secrets.CODECOV_TOKEN }}
+          files: lcov.info

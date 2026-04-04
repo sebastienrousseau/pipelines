@@ -14,47 +14,43 @@ on:
     inputs:
       days-before-stale:
         description: 'Days before marking stale'
-        required: false
-        type: number
         default: 60
+        type: number
       days-before-close:
         description: 'Days before closing'
-        required: false
-        type: number
         default: 14
+        type: number
       stale-issue-label:
         description: 'Label for stale issues'
-        required: false
-        type: string
         default: 'stale'
+        type: string
       stale-pr-label:
         description: 'Label for stale PRs'
-        required: false
-        type: string
         default: 'stale'
+        type: string
       exempt-issue-labels:
         description: 'Labels that exempt issues from stale'
-        required: false
-        type: string
         default: 'pinned,security,bug'
+        type: string
       exempt-pr-labels:
         description: 'Labels that exempt PRs from stale'
-        required: false
-        type: string
         default: 'pinned,security'
+        type: string
+
+permissions: {}
 
 jobs:
   stale:
     name: Mark Stale
     runs-on: ubuntu-latest
+    timeout-minutes: 5
 
     permissions:
       issues: write
       pull-requests: write
 
     steps:
-      - name: Mark stale issues and PRs
-        uses: actions/stale@v9
+      - uses: actions/stale@5bef64f19d7facfb25b37b414482c7164d639639 # v9
         with:
           stale-issue-message: |
             This issue has been automatically marked as stale because it has not had recent activity.
@@ -78,3 +74,4 @@ jobs:
           exempt-pr-labels: ${{ inputs.exempt-pr-labels }}
           remove-stale-when-updated: true
           delete-branch: false
+          operations-per-run: 100

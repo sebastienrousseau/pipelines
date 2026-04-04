@@ -1,0 +1,38 @@
+# Example: Python project with OIDC Trusted Publishing
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  ci:
+    uses: sebastienrousseau/pipelines/.github/workflows/python-ci.yml@main
+    with:
+      python-version: '3.12'
+      package-manager: 'uv'
+      run-coverage: true
+    secrets:
+      CODECOV_TOKEN: ${{ secrets.CODECOV_TOKEN }}
+
+  security:
+    uses: sebastienrousseau/pipelines/.github/workflows/security.yml@main
+    with:
+      language: python
+
+  # Release with OIDC Trusted Publishing (no PYPI_TOKEN needed)
+  # Requires: configure Trusted Publisher on https://pypi.org/manage/project/.../settings/publishing/
+  release:
+    if: startsWith(github.ref, 'refs/tags/v')
+    uses: sebastienrousseau/pipelines/.github/workflows/release.yml@main
+    with:
+      language: python
+    permissions:
+      contents: write
+      id-token: write
+      attestations: write

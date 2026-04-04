@@ -1,0 +1,108 @@
+name: Go CI
+
+on:
+  workflow_call:
+    inputs:
+      go-version:
+        description: 'Go version'
+        default: '1.23'
+        type: string
+      run-vet:
+        description: 'Run go vet'
+        default: true
+        type: boolean
+      run-staticcheck:
+        description: 'Run staticcheck'
+        default: true
+        type: boolean
+      run-coverage:
+        description: 'Generate coverage report'
+        default: false
+        type: boolean
+      run-cross-platform:
+        description: 'Test on macOS and Windows'
+        default: false
+        type: boolean
+      runner:
+        description: 'Runner label (e.g. ubuntu-latest, ubuntu-24.04-arm)'
+        default: 'ubuntu-latest'
+        type: string
+      timeout-minutes:
+        description: 'Timeout for jobs'
+        default: 15
+        type: number
+    secrets:
+      CODECOV_TOKEN:
+        description: 'Codecov upload token'
+        required: false
+
+permissions: {}
+
+jobs:
+  check:
+    name: Check & Test
+    runs-on: ${{ inputs.runner }}
+    timeout-minutes: ${{ inputs.timeout-minutes }}
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@93cb6efe18208431cddfb8368fd83d5badbf9bfd # v5
+        with:
+          fetch-depth: 1
+          persist-credentials: false
+          show-progress: false
+
+      - uses: actions/setup-go@40f1582b2485089dde7abd97c1529aa768e1baff # v5
+        with:
+          go-version: ${{ inputs.go-version }}
+
+      - name: Vet
+        if: inputs.run-vet
+        run: go vet ./...
+
+      - name: Staticcheck
+        if: inputs.run-staticcheck
+        run: |
+          go install honnef.co/go/tools/cmd/staticcheck@latest
+          staticcheck ./...
+
+      - name: Test
+        run: |
+          if [ "${{ inputs.run-coverage }}" = "true" ]; then
+            go test -race -coverprofile=coverage.out -covermode=atomic ./...
+          else
+            go test -race ./...
+          fi
+
+      - name: Upload coverage
+        if: inputs.run-coverage
+        uses: codecov/codecov-action@75cd11691c0faa626561e295848008c8a7dddffe # v5
+        with:
+          token: ${{ secrets.CODECOV_TOKEN }}
+          files: coverage.out
+
+  cross:
+    name: Test (${{ matrix.os }})
+    if: inputs.run-cross-platform
+    needs: check
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: ${{ inputs.timeout-minutes }}
+    permissions:
+      contents: read
+    strategy:
+      fail-fast: true
+      matrix:
+        os: [macos-latest, windows-latest]
+    steps:
+      - uses: actions/checkout@93cb6efe18208431cddfb8368fd83d5badbf9bfd # v5
+        with:
+          fetch-depth: 1
+          persist-credentials: false
+          show-progress: false
+
+      - uses: actions/setup-go@40f1582b2485089dde7abd97c1529aa768e1baff # v5
+        with:
+          go-version: ${{ inputs.go-version }}
+
+      - name: Test
+        run: go test -race ./...

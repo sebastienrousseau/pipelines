@@ -12,8 +12,8 @@ on:
         default: true
         type: boolean
       severity-threshold:
-        description: 'Minimum severity to report (low, medium, high, critical)'
-        default: 'medium'
+        description: 'Minimum severity to report (low, moderate, high, critical)'
+        default: 'moderate'
         type: string
       runner:
         description: 'Runner label (e.g. ubuntu-latest, ubuntu-24.04-arm)'

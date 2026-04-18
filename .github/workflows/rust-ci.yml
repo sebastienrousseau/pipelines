@@ -35,6 +35,10 @@ on:
         description: 'Files to exclude from coverage (comma-separated globs)'
         default: ''
         type: string
+      coverage-packages:
+        description: 'Comma-separated list of packages to include in coverage (empty = all)'
+        default: ''
+        type: string
       runner:
         description: 'Runner label (e.g. ubuntu-latest, ubuntu-24.04-arm)'
         default: 'ubuntu-latest'
@@ -190,17 +194,23 @@ jobs:
 
       - name: Generate coverage
         run: |
-          EXCLUDE_ARGS=""
+          EXTRA_ARGS=""
           if [ -n "${{ inputs.coverage-exclude }}" ]; then
             IFS=',' read -ra PARTS <<< "${{ inputs.coverage-exclude }}"
             for part in "${PARTS[@]}"; do
-              EXCLUDE_ARGS="$EXCLUDE_ARGS --exclude-files $(echo "$part" | xargs)"
+              EXTRA_ARGS="$EXTRA_ARGS --exclude-files $(echo "$part" | xargs)"
+            done
+          fi
+          if [ -n "${{ inputs.coverage-packages }}" ]; then
+            IFS=',' read -ra PKGS <<< "${{ inputs.coverage-packages }}"
+            for pkg in "${PKGS[@]}"; do
+              EXTRA_ARGS="$EXTRA_ARGS --packages $(echo "$pkg" | xargs)"
             done
           fi
           if [ -n "${{ inputs.cargo-features }}" ]; then
-            cargo tarpaulin --out Lcov --no-fail-fast --features "${{ inputs.cargo-features }}" ${EXCLUDE_ARGS}
+            cargo tarpaulin --out Lcov --no-fail-fast --features "${{ inputs.cargo-features }}" ${EXTRA_ARGS}
           else
-            cargo tarpaulin --out Lcov --no-fail-fast --all-features ${EXCLUDE_ARGS}
+            cargo tarpaulin --out Lcov --no-fail-fast --all-features ${EXTRA_ARGS}
           fi
         env:
           RUSTFLAGS: '-Ccodegen-units=1 -Clink-dead-code -Coverflow-checks=off'

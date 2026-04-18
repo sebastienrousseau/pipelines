@@ -19,6 +19,10 @@ on:
         description: 'Runner label (e.g. ubuntu-latest, ubuntu-24.04-arm)'
         default: 'ubuntu-latest'
         type: string
+      allow-ghsas:
+        description: 'Comma-separated GHSA IDs to allow in dependency review'
+        default: ''
+        type: string
 
 permissions: {}
 
@@ -222,3 +226,4 @@ jobs:
       - uses: actions/dependency-review-action@2031cfc080254a8a887f58cffee85186f0e49e48 # v4
         with:
           fail-on-severity: ${{ inputs.severity-threshold }}
+          allow-ghsas: ${{ inputs.allow-ghsas }}

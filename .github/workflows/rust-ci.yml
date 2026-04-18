@@ -198,9 +198,9 @@ jobs:
             done
           fi
           if [ -n "${{ inputs.cargo-features }}" ]; then
-            cargo tarpaulin --out Lcov --no-fail-fast --features "${{ inputs.cargo-features }}" ${EXCLUDE_ARGS:+"$EXCLUDE_ARGS"}
+            cargo tarpaulin --out Lcov --no-fail-fast --features "${{ inputs.cargo-features }}" ${EXCLUDE_ARGS}
           else
-            cargo tarpaulin --out Lcov --no-fail-fast --all-features ${EXCLUDE_ARGS:+"$EXCLUDE_ARGS"}
+            cargo tarpaulin --out Lcov --no-fail-fast --all-features ${EXCLUDE_ARGS}
           fi
         env:
           RUSTFLAGS: '-Ccodegen-units=1 -Clink-dead-code -Coverflow-checks=off'

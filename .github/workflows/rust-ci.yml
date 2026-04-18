@@ -35,8 +35,8 @@ on:
         description: 'Files to exclude from coverage (comma-separated globs)'
         default: ''
         type: string
-      coverage-packages:
-        description: 'Comma-separated list of packages to include in coverage (empty = all)'
+      coverage-exclude-packages:
+        description: 'Comma-separated list of packages to exclude from coverage'
         default: ''
         type: string
       runner:
@@ -201,10 +201,10 @@ jobs:
               EXTRA_ARGS="$EXTRA_ARGS --exclude-files $(echo "$part" | xargs)"
             done
           fi
-          if [ -n "${{ inputs.coverage-packages }}" ]; then
-            IFS=',' read -ra PKGS <<< "${{ inputs.coverage-packages }}"
+          if [ -n "${{ inputs.coverage-exclude-packages }}" ]; then
+            IFS=',' read -ra PKGS <<< "${{ inputs.coverage-exclude-packages }}"
             for pkg in "${PKGS[@]}"; do
-              EXTRA_ARGS="$EXTRA_ARGS --packages $(echo "$pkg" | xargs)"
+              EXTRA_ARGS="$EXTRA_ARGS --exclude $(echo "$pkg" | xargs)"
             done
           fi
           if [ -n "${{ inputs.cargo-features }}" ]; then

@@ -129,7 +129,7 @@ jobs:
           ARGS=""
           [ "${{ inputs.test-coverage }}" = "true" ] && ARGS="--coverage"
           case "${{ inputs.package-manager }}" in
-            pnpm) pnpm test $ARGS ;;
+            pnpm) pnpm test -- $ARGS ;;
             yarn) yarn test $ARGS ;;
             *)    npm test -- $ARGS ;;
           esac

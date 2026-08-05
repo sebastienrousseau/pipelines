@@ -19,6 +19,14 @@ on:
         description: 'Run ruff linting'
         default: true
         type: boolean
+      ruff-version:
+        description: 'Pinned ruff version. Empty string installs the latest release.'
+        default: '0.16.1'
+        type: string
+      mypy-version:
+        description: 'Pinned mypy version. Empty string installs the latest release.'
+        default: '2.3.0'
+        type: string
       run-coverage:
         description: 'Generate coverage report'
         default: false
@@ -68,20 +76,31 @@ jobs:
         if: inputs.package-manager == 'uv'
         uses: astral-sh/setup-uv@caf0cab7a618c569241d31dcd442f54681755d39 # v3
 
-      # Ruff runs BEFORE deps — it only needs source files, fail-fast on lint
+      # Ruff runs BEFORE deps — it only needs source files, fail-fast on lint.
+      # RUFF_SPEC is pinned by default: an unpinned install means a new ruff
+      # release can turn every consumer's CI red with no change on their side,
+      # and new rules or formatter changes ship in minor versions.
       - name: Ruff check
         if: inputs.run-ruff
+        env:
+          RUFF_VERSION: ${{ inputs.ruff-version }}
         run: |
+          if [ -n "$RUFF_VERSION" ]; then
+            RUFF_SPEC="ruff==$RUFF_VERSION"; UVX_SPEC="ruff@$RUFF_VERSION"
+          else
+            RUFF_SPEC="ruff"; UVX_SPEC="ruff"
+          fi
+          echo "UVX_SPEC=$UVX_SPEC" >> "$GITHUB_ENV"
           case "${{ inputs.package-manager }}" in
-            uv) uvx ruff check . ;;
-            *)  pip install --no-cache-dir ruff && ruff check . ;;
+            uv) uvx "$UVX_SPEC" check . ;;
+            *)  pip install --no-cache-dir "$RUFF_SPEC" && ruff check . ;;
           esac
 
       - name: Ruff format
         if: inputs.run-ruff
         run: |
           case "${{ inputs.package-manager }}" in
-            uv) uvx ruff format --check . ;;
+            uv) uvx "$UVX_SPEC" format --check . ;;
             *)  ruff format --check . ;;
           esac
 
@@ -104,11 +123,14 @@ jobs:
 
       - name: Mypy
         if: inputs.run-mypy
+        env:
+          MYPY_VERSION: ${{ inputs.mypy-version }}
         run: |
+          if [ -n "$MYPY_VERSION" ]; then MYPY_SPEC="mypy==$MYPY_VERSION"; else MYPY_SPEC="mypy"; fi
           case "${{ inputs.package-manager }}" in
             poetry) poetry run mypy src/ || poetry run mypy . ;;
             uv)     uv run mypy src/ || uv run mypy . ;;
-            *)      pip install --no-cache-dir mypy && (mypy src/ || mypy .) ;;
+            *)      pip install --no-cache-dir "$MYPY_SPEC" && (mypy src/ || mypy .) ;;
           esac
 
   test:

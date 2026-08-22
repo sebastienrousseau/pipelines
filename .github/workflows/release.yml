@@ -103,9 +103,22 @@ jobs:
           VERSION=$(cargo metadata --format-version 1 --no-deps 2>/dev/null | jq -r '.packages[0].version' 2>/dev/null || grep '^version' Cargo.toml | head -1 | cut -d '"' -f 2)
           echo "version=$VERSION" >> "$GITHUB_OUTPUT"
 
+      # Everything this job produces lands in RUNNER_TEMP, never in the
+      # checkout.
+      #
+      # `cargo publish` refuses to run against a dirty working tree, and
+      # downloading artifacts into `artifacts/` plus writing
+      # `sbom.spdx.json` at the repo root made it dirty on every release:
+      #
+      #   error: 5 files in the working directory contain changes that were
+      #   not yet committed into git
+      #
+      # `--allow-dirty` would silence that and make it worse — the artifacts
+      # and the SBOM would be packaged into the published .crate. Keeping
+      # them outside the checkout is the actual fix.
       - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4
         with:
-          path: artifacts
+          path: ${{ runner.temp }}/artifacts
 
       - name: Create release
         if: ${{ !inputs.dry-run }}
@@ -114,27 +127,40 @@ jobs:
           tag_name: v${{ steps.version.outputs.version }}
           generate_release_notes: true
           draft: true
-          files: artifacts/**/*.tar.gz
+          files: ${{ runner.temp }}/artifacts/**/*.tar.gz
 
       - name: Attest build provenance
         if: ${{ !inputs.dry-run }}
         uses: actions/attest-build-provenance@e8998f949152b193b063cb0ec769d69d929409be # v2
         with:
-          subject-path: 'artifacts/**/*.tar.gz'
+          subject-path: '${{ runner.temp }}/artifacts/**/*.tar.gz'
 
       - name: Generate SBOM
         if: ${{ !inputs.dry-run }}
         uses: anchore/sbom-action@e22c389904149dbc22b58101806040fa8d37a610 # v0
         with:
+          # Scans the checkout, writes outside it.
           path: .
           format: spdx-json
-          output-file: sbom.spdx.json
+          output-file: ${{ runner.temp }}/sbom.spdx.json
 
       - name: Upload SBOM to release
         if: ${{ !inputs.dry-run }}
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        run: gh release upload "v${{ steps.version.outputs.version }}" sbom.spdx.json --clobber
+        run: gh release upload "v${{ steps.version.outputs.version }}" "${RUNNER_TEMP}/sbom.spdx.json" --clobber
+
+      # Fail loudly rather than letting cargo publish report it three steps
+      # later, where the cause is much less obvious.
+      - name: Working tree must be clean before publishing
+        if: ${{ !inputs.dry-run }}
+        run: |
+          if [[ -n "$(git status --porcelain)" ]]; then
+            echo "::error::working tree is dirty; cargo publish will refuse"
+            git status --short
+            exit 1
+          fi
+          echo "working tree clean"
 
       - name: Install Rust toolchain
         if: ${{ !inputs.dry-run }}
@@ -198,7 +224,7 @@ jobs:
         with:
           path: .
           format: spdx-json
-          output-file: sbom.spdx.json
+          output-file: ${{ runner.temp }}/sbom.spdx.json
 
       - name: Publish to PyPI (OIDC Trusted Publishing)
         if: ${{ !inputs.dry-run }}
@@ -263,7 +289,7 @@ jobs:
         with:
           path: .
           format: spdx-json
-          output-file: sbom.spdx.json
+          output-file: ${{ runner.temp }}/sbom.spdx.json
 
       - name: Publish to npm
         if: ${{ !inputs.dry-run }}
@@ -335,7 +361,7 @@ jobs:
 
       - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4
         with:
-          path: artifacts
+          path: ${{ runner.temp }}/artifacts
 
       - name: Create release
         if: ${{ !inputs.dry-run }}
@@ -343,13 +369,13 @@ jobs:
         with:
           tag_name: v${{ steps.version.outputs.version }}
           generate_release_notes: true
-          files: artifacts/**/*.tar.gz
+          files: ${{ runner.temp }}/artifacts/**/*.tar.gz
 
       - name: Attest build provenance
         if: ${{ !inputs.dry-run }}
         uses: actions/attest-build-provenance@e8998f949152b193b063cb0ec769d69d929409be # v2
         with:
-          subject-path: 'artifacts/**/*.tar.gz'
+          subject-path: '${{ runner.temp }}/artifacts/**/*.tar.gz'
 
       - name: Generate SBOM
         if: ${{ !inputs.dry-run }}
@@ -357,10 +383,10 @@ jobs:
         with:
           path: .
           format: spdx-json
-          output-file: sbom.spdx.json
+          output-file: ${{ runner.temp }}/sbom.spdx.json
 
       - name: Upload SBOM to release
         if: ${{ !inputs.dry-run }}
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        run: gh release upload "v${{ steps.version.outputs.version }}" sbom.spdx.json --clobber
+        run: gh release upload "v${{ steps.version.outputs.version }}" "${RUNNER_TEMP}/sbom.spdx.json" --clobber

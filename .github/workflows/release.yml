@@ -226,6 +226,12 @@ jobs:
           format: spdx-json
           output-file: ${{ runner.temp }}/sbom.spdx.json
 
+      - name: Upload SBOM to release
+        if: ${{ !inputs.dry-run }}
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: gh release upload "v${{ steps.version.outputs.version }}" "${RUNNER_TEMP}/sbom.spdx.json" --clobber
+
       - name: Publish to PyPI (OIDC Trusted Publishing)
         if: ${{ !inputs.dry-run }}
         uses: pypa/gh-action-pypi-publish@ed0c53931b1dc9bd32cbe73a98c7f6766f8a527e # v1
@@ -290,6 +296,12 @@ jobs:
           path: .
           format: spdx-json
           output-file: ${{ runner.temp }}/sbom.spdx.json
+
+      - name: Upload SBOM to release
+        if: ${{ !inputs.dry-run }}
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: gh release upload "v${{ steps.version.outputs.version }}" "${RUNNER_TEMP}/sbom.spdx.json" --clobber
 
       - name: Publish to npm
         if: ${{ !inputs.dry-run }}

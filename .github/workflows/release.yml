@@ -66,6 +66,49 @@ jobs:
           key: release-${{ matrix.platform.target }}
           save-if: ${{ github.ref == format('refs/heads/{0}', github.event.repository.default_branch) }}
 
+      # Cross linkers for the Linux targets ubuntu-latest cannot build
+      # unaided. Crates with cc-rs build scripts — onig_sys, ring, openssl-sys
+      # — invoke the target's gcc directly, and without it the build dies
+      # with, for example:
+      #
+      #   error occurred in cc-rs: failed to find tool
+      #   "aarch64-linux-gnu-gcc": No such file or directory
+      #
+      # Because the matrix is fail-fast, one absent linker cancels every other
+      # target and skips the release job with them. staticdatagen dropped
+      # aarch64 and then musl for exactly this reason and published by hand
+      # from v0.0.9 to v0.0.16.
+      #
+      # CARGO_TARGET_*_LINKER is what actually makes cargo link with the cross
+      # compiler; installing the package alone is not enough.
+      - name: Install cross linker
+        if: runner.os == 'Linux' && matrix.platform.target != 'x86_64-unknown-linux-gnu'
+        shell: bash
+        run: |
+          set -euo pipefail
+          case "${{ matrix.platform.target }}" in
+            aarch64-unknown-linux-gnu)
+              sudo apt-get update
+              sudo apt-get install -y gcc-aarch64-linux-gnu
+              {
+                echo "CARGO_TARGET_AARCH64_UNKNOWN_LINUX_GNU_LINKER=aarch64-linux-gnu-gcc"
+                echo "CC_aarch64_unknown_linux_gnu=aarch64-linux-gnu-gcc"
+                echo "AR_aarch64_unknown_linux_gnu=aarch64-linux-gnu-ar"
+              } >> "$GITHUB_ENV"
+              ;;
+            x86_64-unknown-linux-musl)
+              sudo apt-get update
+              sudo apt-get install -y musl-tools
+              {
+                echo "CARGO_TARGET_X86_64_UNKNOWN_LINUX_MUSL_LINKER=musl-gcc"
+                echo "CC_x86_64_unknown_linux_musl=musl-gcc"
+              } >> "$GITHUB_ENV"
+              ;;
+            *)
+              echo "no cross linker needed for ${{ matrix.platform.target }}"
+              ;;
+          esac
+
       - run: cargo build --release --target ${{ matrix.platform.target }}
 
       - name: Package

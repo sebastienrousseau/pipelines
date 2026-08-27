@@ -177,7 +177,9 @@ jobs:
   coverage:
     name: Coverage
     if: inputs.run-coverage
-    needs: check
+    # Deliberately not `needs: check`. Coverage builds the workspace
+    # itself, so gating it on check bought no reuse and simply idled it
+    # through check's runtime — ~30s of pure critical path.
     runs-on: ubuntu-latest
     timeout-minutes: 30
     permissions:
@@ -226,8 +228,9 @@ jobs:
           cargo tarpaulin "${TARPAULIN_ARGS[@]}"
         env:
           # -Clink-dead-code keeps tarpaulin's line attribution honest.
-          # -Ccodegen-units=1 was also set, which serialises codegen and
-          # roughly doubled this step for no accuracy benefit.
+          # -Ccodegen-units=1 was also set; measured at ~2s of an 86s step,
+          # so it is dropped as needless serialisation rather than as a
+          # speedup. The step's cost is tarpaulin's instrumented rebuild.
           RUSTFLAGS: '-Clink-dead-code -Coverflow-checks=off'
 
       - uses: codecov/codecov-action@75cd11691c0faa626561e295848008c8a7dddffe # v5

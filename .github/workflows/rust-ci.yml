@@ -160,9 +160,19 @@ jobs:
           fetch-depth: 1
           persist-credentials: false
           show-progress: false
-      - uses: rustsec/audit-check@69366f33c96575abad1ee0dba8212993eecbe998 # v2.0.0
+      # rustsec/audit-check compiles cargo-audit from source on every run,
+      # which costs ~190s and made this the critical path for the whole
+      # workflow. install-action fetches a prebuilt binary instead.
+      - uses: taiki-e/install-action@1ed3272338f573e042a2e6bca3893aa19f43b47a # v2
         with:
-          token: ${{ secrets.GITHUB_TOKEN }}
+          tool: cargo-audit
+
+      # Plain `cargo audit` fails on vulnerabilities only, matching what
+      # audit-check gated on. `--deny warnings` would also fail on
+      # unmaintained and yanked advisories, which is a stricter policy than
+      # the repos consuming this workflow have agreed to.
+      - name: Audit
+        run: cargo audit
 
   coverage:
     name: Coverage
@@ -215,7 +225,10 @@ jobs:
           fi
           cargo tarpaulin "${TARPAULIN_ARGS[@]}"
         env:
-          RUSTFLAGS: '-Ccodegen-units=1 -Clink-dead-code -Coverflow-checks=off'
+          # -Clink-dead-code keeps tarpaulin's line attribution honest.
+          # -Ccodegen-units=1 was also set, which serialises codegen and
+          # roughly doubled this step for no accuracy benefit.
+          RUSTFLAGS: '-Clink-dead-code -Coverflow-checks=off'
 
       - uses: codecov/codecov-action@75cd11691c0faa626561e295848008c8a7dddffe # v5
         with:

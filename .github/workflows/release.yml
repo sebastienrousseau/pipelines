@@ -86,9 +86,34 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
+
+          # The hosted runner image ships third-party apt sources we do not
+          # need here — Google Chrome among them. When one of those serves a
+          # bad index, `apt-get update` exits 100 and takes the whole release
+          # with it, even though every Ubuntu index fetched cleanly. That is
+          # what happened to ssg v0.0.60:
+          #
+          #   E: Failed to fetch https://dl.google.com/linux/chrome-stable/...
+          #      Packages.gz  Hash Sum mismatch
+          #
+          # The x86_64 image carries that source and the aarch64 one does not,
+          # so the same job passed on one architecture and failed on the other
+          # for a reason unrelated to either.
+          #
+          # Drop the sources we have no use for, then tolerate a residual
+          # update failure. This does not weaken the check: `apt-get install`
+          # below still fails loudly if the package is genuinely unavailable,
+          # and that is the condition worth failing on.
+          sudo rm -f /etc/apt/sources.list.d/google-chrome.list \
+                     /etc/apt/sources.list.d/microsoft-prod.list
+          apt_update() {
+            sudo apt-get update \
+              || echo "apt-get update failed; continuing to the install"
+          }
+
           case "${{ matrix.platform.target }}" in
             aarch64-unknown-linux-gnu)
-              sudo apt-get update
+              apt_update
               sudo apt-get install -y gcc-aarch64-linux-gnu
               {
                 echo "CARGO_TARGET_AARCH64_UNKNOWN_LINUX_GNU_LINKER=aarch64-linux-gnu-gcc"
@@ -97,7 +122,7 @@ jobs:
               } >> "$GITHUB_ENV"
               ;;
             x86_64-unknown-linux-musl)
-              sudo apt-get update
+              apt_update
               sudo apt-get install -y musl-tools
               {
                 echo "CARGO_TARGET_X86_64_UNKNOWN_LINUX_MUSL_LINKER=musl-gcc"

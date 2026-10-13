@@ -17,12 +17,37 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
   `RUSTUP_TOOLCHAIN`, which beats the file, and fails unless `rustc` in
   use is the requested version. `tests/validate.sh` checks that every such
   install is pinned and verified.
+- `release.yml`: the checkout stays clean so `cargo publish` can run (#7).
+- `node-ci.yml`: test arguments reach pnpm's test script after a `--`
+  separator (#5).
+- `security.yml`: dependency review uses `moderate`, the value the action
+  accepts, instead of `medium` (8b4bfb5).
+- `rust-ci.yml` coverage: package exclusion passes `--exclude` with
+  `--workspace`, and tarpaulin arguments are a bash array, so globs and
+  word splitting no longer break them (738590a, 1301362, 99a39f7).
+
+### Added
+
+- `rust-ci.yml`: a `coverage-exclude-packages` input that leaves packages
+  out of coverage (2d0f335, renamed in ee4d1cf).
+- `security.yml`: an `allow-ghsas` input for the dependency-review job
+  (4777ab1).
+- `release.yml`: SBOMs for Python and Node are uploaded instead of
+  discarded (#8), cross linkers are installed for the Linux targets (#9),
+  and Rust crates publish through crates.io trusted publishing (#10).
+- `node-ci.yml`: callers can opt into the `packageManager` field for pnpm
+  (#12).
 
 ### Changed
 
 - Callers whose `rust-toolchain.toml` pins `stable` now get real nightly
   rustdoc builds from `docs.yml` (its default `rust-version` is
   `nightly`), as the input always promised.
+- `rust-ci.yml`: the audit job installs a prebuilt `cargo-audit` instead of
+  compiling it on every run (#11).
+- `python-ci.yml`: ruff and mypy versions are pinned (#6).
+- Actions: Swatinem/rust-cache 2.9.1 (#2), setup-go and setup-node 6.4.0
+  on Node 24 (#3), codecov-action 7.0.0 (#4).
 
 ## [0.0.2] - 2026-04-04
 

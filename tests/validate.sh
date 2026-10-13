@@ -110,6 +110,15 @@ check "dependabot.yml has gomod" "grep -q 'gomod' templates/dependabot.yml"
 check "labeler.yml has go patterns" "grep -q '\\*\\*/\\*.go' templates/labeler.yml"
 
 echo ""
+echo "=== 14. Toolchain Override ==="
+# A caller's rust-toolchain.toml beats `rustup default`, so every job that
+# installs inputs.rust-version must export RUSTUP_TOOLCHAIN and verify it.
+for f in rust-ci.yml docs.yml; do
+  check "every rust-version install is pinned and verified in $f" \
+    "[ \$(grep -c 'toolchain: \${{ inputs.rust-version }}' $WORKFLOWS/$f) -eq \$(grep -c 'name: Verify the toolchain in use' $WORKFLOWS/$f) ] && [ \$(grep -c 'RUSTUP_TOOLCHAIN=' $WORKFLOWS/$f) -ge 1 ]"
+done
+
+echo ""
 echo "==============================="
 echo "Results: $PASS passed, $FAIL failed"
 echo "==============================="

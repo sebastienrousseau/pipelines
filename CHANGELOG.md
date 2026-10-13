@@ -4,6 +4,26 @@ All notable changes to this project will be documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
+## [0.0.3] - Unreleased
+
+### Fixed
+
+- **`rust-ci.yml` and `docs.yml` now build on the toolchain the caller
+  asks for.** `dtolnay/rust-toolchain` only runs `rustup default`, and a
+  caller's `rust-toolchain.toml` beats that, so a repo pinning `stable`
+  there ran its MSRV and nightly jobs on stable while they reported green
+  (staticdatagen's `msrv` job built with 1.99.0 while asking for 1.88.0).
+  Every job that installs `inputs.rust-version` now exports
+  `RUSTUP_TOOLCHAIN`, which beats the file, and fails unless `rustc` in
+  use is the requested version. `tests/validate.sh` checks that every such
+  install is pinned and verified.
+
+### Changed
+
+- Callers whose `rust-toolchain.toml` pins `stable` now get real nightly
+  rustdoc builds from `docs.yml` (its default `rust-version` is
+  `nightly`), as the input always promised.
+
 ## [0.0.2] - 2026-04-04
 
 ### Added

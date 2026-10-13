@@ -216,7 +216,7 @@ cosign verify --certificate-identity-regexp='.*' \
 
 | Input | Type | Default | Description |
 | :--- | :--- | :--- | :--- |
-| `rust-version` | string | `stable` | Rust toolchain version |
+| `rust-version` | string | `stable` | Rust toolchain version. Exported as `RUSTUP_TOOLCHAIN`, so it beats a caller's `rust-toolchain.toml`; the job fails if `rustc` in use is not this version |
 | `cargo-features` | string | `''` | Features to enable (empty = all) |
 | `run-clippy` | boolean | `true` | Run clippy linting |
 | `run-fmt` | boolean | `true` | Check formatting |
@@ -325,7 +325,7 @@ cosign verify --certificate-identity-regexp='.*' \
 | `deploy` | boolean | `true` | Deploy to GitHub Pages |
 | `working-directory` | string | `.` | Working directory |
 | `python-version` | string | `3.12` | Python version (for Python docs) |
-| `rust-version` | string | `nightly` | Rust toolchain (for Rust docs) |
+| `rust-version` | string | `nightly` | Rust toolchain (for Rust docs). Exported as `RUSTUP_TOOLCHAIN` and verified, as in `rust-ci.yml` |
 | `cname` | string | `''` | Custom domain for GitHub Pages |
 | `redirect-crate` | string | `''` | Crate name for redirect (Rust) |
 

@@ -78,10 +78,43 @@ jobs:
           show-progress: false
 
       - name: Install Rust
+        id: toolchain
         uses: dtolnay/rust-toolchain@3c5f7ea28cd621ae0bf5283f0e981fb97b8a7af9 # master
         with:
           toolchain: ${{ inputs.rust-version }}
           components: rustfmt, clippy
+
+      # dtolnay/rust-toolchain only runs `rustup default`, and a caller's
+      # rust-toolchain.toml beats the default. A repo that pins `stable`
+      # there ran its MSRV and nightly jobs on stable while they reported
+      # green. RUSTUP_TOOLCHAIN beats the file, so export it for every
+      # later step, then prove the compiler in use is the one requested.
+      - name: Pin the requested toolchain
+        shell: bash
+        env:
+          TOOLCHAIN: ${{ steps.toolchain.outputs.name }}
+        run: echo "RUSTUP_TOOLCHAIN=$TOOLCHAIN" >> "$GITHUB_ENV"
+
+      - name: Verify the toolchain in use
+        shell: bash
+        env:
+          REQUESTED: ${{ inputs.rust-version }}
+          TOOLCHAIN: ${{ steps.toolchain.outputs.name }}
+        run: |
+          actual="$(rustc --version)"
+          expected="$(rustc "+$TOOLCHAIN" --version)"
+          case "$REQUESTED" in
+            stable) pattern='^rustc [0-9]+\.[0-9]+\.[0-9]+ \(' ;;
+            beta) pattern='-beta' ;;
+            nightly*) pattern='-nightly' ;;
+            [0-9]*) pattern="^rustc ${REQUESTED//./\\.}[. ]" ;;
+            *) pattern='' ;;
+          esac
+          echo "requested $REQUESTED, in use: $actual"
+          if [ "$actual" != "$expected" ] || ! grep -Eq -- "${pattern:-.}" <<<"$actual"; then
+            echo "::error::rustc in use is '$actual', not the requested $REQUESTED ($expected)"
+            exit 1
+          fi
 
       - uses: Swatinem/rust-cache@c19371144df3bb44fab255c43d04cbc2ab54d1c4 # v2.9.1
         with:
@@ -130,9 +163,42 @@ jobs:
           show-progress: false
 
       - name: Install Rust
+        id: toolchain
         uses: dtolnay/rust-toolchain@3c5f7ea28cd621ae0bf5283f0e981fb97b8a7af9 # master
         with:
           toolchain: ${{ inputs.rust-version }}
+
+      # dtolnay/rust-toolchain only runs `rustup default`, and a caller's
+      # rust-toolchain.toml beats the default. A repo that pins `stable`
+      # there ran its MSRV and nightly jobs on stable while they reported
+      # green. RUSTUP_TOOLCHAIN beats the file, so export it for every
+      # later step, then prove the compiler in use is the one requested.
+      - name: Pin the requested toolchain
+        shell: bash
+        env:
+          TOOLCHAIN: ${{ steps.toolchain.outputs.name }}
+        run: echo "RUSTUP_TOOLCHAIN=$TOOLCHAIN" >> "$GITHUB_ENV"
+
+      - name: Verify the toolchain in use
+        shell: bash
+        env:
+          REQUESTED: ${{ inputs.rust-version }}
+          TOOLCHAIN: ${{ steps.toolchain.outputs.name }}
+        run: |
+          actual="$(rustc --version)"
+          expected="$(rustc "+$TOOLCHAIN" --version)"
+          case "$REQUESTED" in
+            stable) pattern='^rustc [0-9]+\.[0-9]+\.[0-9]+ \(' ;;
+            beta) pattern='-beta' ;;
+            nightly*) pattern='-nightly' ;;
+            [0-9]*) pattern="^rustc ${REQUESTED//./\\.}[. ]" ;;
+            *) pattern='' ;;
+          esac
+          echo "requested $REQUESTED, in use: $actual"
+          if [ "$actual" != "$expected" ] || ! grep -Eq -- "${pattern:-.}" <<<"$actual"; then
+            echo "::error::rustc in use is '$actual', not the requested $REQUESTED ($expected)"
+            exit 1
+          fi
 
       - uses: Swatinem/rust-cache@c19371144df3bb44fab255c43d04cbc2ab54d1c4 # v2.9.1
         with:
@@ -192,9 +258,42 @@ jobs:
           show-progress: false
 
       - name: Install Rust
+        id: toolchain
         uses: dtolnay/rust-toolchain@3c5f7ea28cd621ae0bf5283f0e981fb97b8a7af9 # master
         with:
           toolchain: ${{ inputs.rust-version }}
+
+      # dtolnay/rust-toolchain only runs `rustup default`, and a caller's
+      # rust-toolchain.toml beats the default. A repo that pins `stable`
+      # there ran its MSRV and nightly jobs on stable while they reported
+      # green. RUSTUP_TOOLCHAIN beats the file, so export it for every
+      # later step, then prove the compiler in use is the one requested.
+      - name: Pin the requested toolchain
+        shell: bash
+        env:
+          TOOLCHAIN: ${{ steps.toolchain.outputs.name }}
+        run: echo "RUSTUP_TOOLCHAIN=$TOOLCHAIN" >> "$GITHUB_ENV"
+
+      - name: Verify the toolchain in use
+        shell: bash
+        env:
+          REQUESTED: ${{ inputs.rust-version }}
+          TOOLCHAIN: ${{ steps.toolchain.outputs.name }}
+        run: |
+          actual="$(rustc --version)"
+          expected="$(rustc "+$TOOLCHAIN" --version)"
+          case "$REQUESTED" in
+            stable) pattern='^rustc [0-9]+\.[0-9]+\.[0-9]+ \(' ;;
+            beta) pattern='-beta' ;;
+            nightly*) pattern='-nightly' ;;
+            [0-9]*) pattern="^rustc ${REQUESTED//./\\.}[. ]" ;;
+            *) pattern='' ;;
+          esac
+          echo "requested $REQUESTED, in use: $actual"
+          if [ "$actual" != "$expected" ] || ! grep -Eq -- "${pattern:-.}" <<<"$actual"; then
+            echo "::error::rustc in use is '$actual', not the requested $REQUESTED ($expected)"
+            exit 1
+          fi
 
       - uses: Swatinem/rust-cache@c19371144df3bb44fab255c43d04cbc2ab54d1c4 # v2.9.1
         with:

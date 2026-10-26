@@ -85,6 +85,7 @@ check "labeler.yml exists" "test -f $WORKFLOWS/labeler.yml"
 check "stale.yml exists" "test -f $WORKFLOWS/stale.yml"
 check "validate.yml exists" "test -f $WORKFLOWS/validate.yml"
 check "scorecard.yml exists" "test -f $WORKFLOWS/scorecard.yml"
+check "codeql.yml exists" "test -f $WORKFLOWS/codeql.yml"
 
 echo ""
 echo "=== 10. Supply Chain Features ==="

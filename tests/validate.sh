@@ -121,6 +121,32 @@ for f in rust-ci.yml docs.yml; do
 done
 
 echo ""
+echo "=== 15. Hash-Pinned pip Installs ==="
+# Scorecard counts a pip install as pinned only with --require-hashes, or
+# for a local editable install with --no-deps. The tools come from the
+# locks in requirements/, which the reusable workflows fetch at their own
+# commit, so every lock a workflow names must exist.
+unhashed_pip_installs() {
+  grep -rnE 'pip3? install( |$)' "$WORKFLOWS"/ | grep -vE -- '--require-hashes|--no-deps -e \.( |$)'
+}
+missing_locks() {
+  local f
+  for f in $(sed -n 's/^ *FILES: //p' "$WORKFLOWS"/*.yml | tr ' ' '\n' | sort -u); do
+    [ -f "requirements/$f.txt" ] || echo "requirements/$f.txt"
+  done
+}
+locked_default() {
+  local tool=$1 locked
+  locked=$(sed -n "s/^$tool==\([^ ;]*\).*/\1/p" "requirements/$tool.txt")
+  [ -n "$locked" ] && grep -A8 "^      $tool-version:" "$WORKFLOWS/python-ci.yml" | grep -q "default: '$locked'"
+}
+check "every pip install requires hashes" "[ -z \"\$(unhashed_pip_installs)\" ]"
+check "every fetched lock exists in requirements/" "[ -z \"\$(missing_locks)\" ]"
+for tool in ruff mypy; do
+  check "$tool-version default matches requirements/$tool.txt" "locked_default $tool"
+done
+
+echo ""
 echo "==============================="
 echo "Results: $PASS passed, $FAIL failed"
 echo "==============================="

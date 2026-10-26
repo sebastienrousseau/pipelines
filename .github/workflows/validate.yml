@@ -8,10 +8,9 @@ on:
     paths:
       - '.github/workflows/**'
       - 'templates/**'
+  # Every pull request: "Validate Workflows" is a required check on main,
+  # so a path filter here left PRs that change only docs unmergeable.
   pull_request:
-    paths:
-      - '.github/workflows/**'
-      - 'templates/**'
 
 permissions: {}
 

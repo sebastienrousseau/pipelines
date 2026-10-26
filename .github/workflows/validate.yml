@@ -35,7 +35,7 @@ jobs:
 
       - name: yamllint
         run: |
-          pip install --no-cache-dir yamllint
+          pip install --no-cache-dir --require-hashes -r requirements/yamllint.txt
           yamllint -d '{extends: default, rules: {line-length: {max: 200}, truthy: disable, comments-indentation: disable, document-start: disable}}' .github/workflows/ templates/
 
       - name: Structural tests

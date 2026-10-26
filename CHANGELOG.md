@@ -46,6 +46,9 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 - `rust-ci.yml`: the audit job installs a prebuilt `cargo-audit` instead of
   compiling it on every run (#11).
 - `python-ci.yml`: ruff and mypy versions are pinned (#6).
+- `go-ci.yml`, `security.yml` and `validate.yml` install staticcheck
+  v0.8.2, govulncheck v1.9.0 and actionlint v1.7.12 instead of `@latest`,
+  so a new tool release cannot change a caller's result overnight.
 - Actions: Swatinem/rust-cache 2.9.1 (#2), setup-go and setup-node 6.4.0
   on Node 24 (#3), codecov-action 7.0.0 (#4).
 

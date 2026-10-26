@@ -22,7 +22,9 @@ check "actionlint passes" "command -v actionlint >/dev/null && actionlint || \"$
 
 echo ""
 echo "=== 3. Supply Chain: SHA Pinning ==="
-check "no mutable @v tags in workflows" "! grep -r '@v' $WORKFLOWS/"
+# Only `uses:` lines: an action tag can move, but a `go install ...@vX.Y.Z`
+# names an immutable Go module version (sum.golang.org pins it).
+check "no mutable @v tags in workflows" "! grep -rE 'uses:[^#]*@v[0-9]' $WORKFLOWS/"
 check "no @master tags (except comments)" "! grep -P 'uses:.*@master(?!\s)' $WORKFLOWS/"
 
 echo ""

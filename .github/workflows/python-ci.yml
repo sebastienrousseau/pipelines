@@ -20,12 +20,27 @@ on:
         default: true
         type: boolean
       ruff-version:
-        description: 'Pinned ruff version. Empty string installs the latest release.'
+        description: >-
+          Pinned ruff version. With package-manager uv any version works and
+          an empty string installs the latest release. pip and poetry install
+          ruff from the hash-pinned requirements/ruff.txt, so they accept only
+          the version locked there (the default).
         default: '0.16.1'
         type: string
       mypy-version:
-        description: 'Pinned mypy version. Empty string installs the latest release.'
+        description: >-
+          Pinned mypy version for package-manager pip, which installs it from
+          the hash-pinned requirements/mypy.txt and accepts only the version
+          locked there (the default). poetry and uv run the project's own mypy.
         default: '2.3.0'
+        type: string
+      requirements-file:
+        description: >-
+          Hash-pinned requirements file that package-manager pip installs
+          before the project itself (with --no-deps). Generate it with
+          `uv pip compile pyproject.toml --extra dev --universal
+          --generate-hashes -o requirements-dev.txt`.
+        default: 'requirements-dev.txt'
         type: string
       run-coverage:
         description: 'Generate coverage report'
@@ -76,6 +91,30 @@ jobs:
         if: inputs.package-manager == 'uv'
         uses: astral-sh/setup-uv@caf0cab7a618c569241d31dcd442f54681755d39 # v3
 
+      # The hash-pinned requirements live in this repository's
+      # requirements/ directory and are fetched at the exact commit of
+      # this workflow, so a caller pinning this workflow by SHA also
+      # pins every tool it installs. actionlint 1.7.12 does not know
+      # job.workflow_sha yet, so the step reads it from toJSON(job).
+      - name: Fetch hash-pinned tool requirements
+        if: inputs.package-manager != 'uv'
+        env:
+          JOB_CONTEXT: ${{ toJSON(job) }}
+          FILES: ruff mypy poetry
+        run: |
+          repo=$(jq -r '.workflow_repository // empty' <<<"$JOB_CONTEXT")
+          sha=$(jq -r '.workflow_sha // empty' <<<"$JOB_CONTEXT")
+          if [ -z "$repo" ] || [ -z "$sha" ]; then
+            echo "::error::job.workflow_sha is unavailable, so the pinned requirements cannot be fetched"
+            exit 1
+          fi
+          dir="$RUNNER_TEMP/pipelines-requirements"
+          mkdir -p "$dir"
+          for f in $FILES; do
+            curl -fsSL --proto '=https' --retry 3 -o "$dir/$f.txt" \
+              "https://raw.githubusercontent.com/$repo/$sha/requirements/$f.txt"
+          done
+
       # Ruff runs BEFORE deps — it only needs source files, fail-fast on lint.
       # RUFF_SPEC is pinned by default: an unpinned install means a new ruff
       # release can turn every consumer's CI red with no change on their side,
@@ -85,15 +124,19 @@ jobs:
         env:
           RUFF_VERSION: ${{ inputs.ruff-version }}
         run: |
-          if [ -n "$RUFF_VERSION" ]; then
-            RUFF_SPEC="ruff==$RUFF_VERSION"; UVX_SPEC="ruff@$RUFF_VERSION"
-          else
-            RUFF_SPEC="ruff"; UVX_SPEC="ruff"
-          fi
+          if [ -n "$RUFF_VERSION" ]; then UVX_SPEC="ruff@$RUFF_VERSION"; else UVX_SPEC="ruff"; fi
           echo "UVX_SPEC=$UVX_SPEC" >> "$GITHUB_ENV"
           case "${{ inputs.package-manager }}" in
             uv) uvx "$UVX_SPEC" check . ;;
-            *)  pip install --no-cache-dir "$RUFF_SPEC" && ruff check . ;;
+            *)
+              lock="$RUNNER_TEMP/pipelines-requirements/ruff.txt"
+              locked="$(sed -n 's/^ruff==\([^ ;]*\).*/\1/p' "$lock")"
+              if [ "$RUFF_VERSION" != "$locked" ]; then
+                echo "::error::ruff-version '$RUFF_VERSION' needs package-manager uv: pip and poetry install the hash-pinned ruff $locked"
+                exit 1
+              fi
+              pip install --no-cache-dir --require-hashes -r "$lock" && ruff check .
+              ;;
           esac
 
       - name: Ruff format
@@ -107,17 +150,24 @@ jobs:
       # Deps only needed for mypy
       - name: Install dependencies
         if: inputs.run-mypy
+        env:
+          REQUIREMENTS_FILE: ${{ inputs.requirements-file }}
         run: |
           case "${{ inputs.package-manager }}" in
             poetry)
-              pip install --no-cache-dir poetry
+              pip install --no-cache-dir --require-hashes -r "$RUNNER_TEMP/pipelines-requirements/poetry.txt"
               poetry install
               ;;
             uv)
               uv sync --dev
               ;;
             *)
-              pip install --no-cache-dir -e ".[dev]"
+              if [ ! -f "$REQUIREMENTS_FILE" ]; then
+                echo "::error::package-manager pip needs the hash-pinned '$REQUIREMENTS_FILE' (see the requirements-file input)"
+                exit 1
+              fi
+              pip install --no-cache-dir --require-hashes -r "$REQUIREMENTS_FILE"
+              pip install --no-cache-dir --no-deps -e .
               ;;
           esac
 
@@ -126,11 +176,18 @@ jobs:
         env:
           MYPY_VERSION: ${{ inputs.mypy-version }}
         run: |
-          if [ -n "$MYPY_VERSION" ]; then MYPY_SPEC="mypy==$MYPY_VERSION"; else MYPY_SPEC="mypy"; fi
           case "${{ inputs.package-manager }}" in
             poetry) poetry run mypy src/ || poetry run mypy . ;;
             uv)     uv run mypy src/ || uv run mypy . ;;
-            *)      pip install --no-cache-dir "$MYPY_SPEC" && (mypy src/ || mypy .) ;;
+            *)
+              lock="$RUNNER_TEMP/pipelines-requirements/mypy.txt"
+              locked="$(sed -n 's/^mypy==\([^ ;]*\).*/\1/p' "$lock")"
+              if [ "$MYPY_VERSION" != "$locked" ]; then
+                echo "::error::mypy-version '$MYPY_VERSION' is not the hash-pinned mypy $locked that package-manager pip installs"
+                exit 1
+              fi
+              pip install --no-cache-dir --require-hashes -r "$lock" && (mypy src/ || mypy .)
+              ;;
           esac
 
   test:
@@ -159,18 +216,49 @@ jobs:
         if: inputs.package-manager == 'uv'
         uses: astral-sh/setup-uv@caf0cab7a618c569241d31dcd442f54681755d39 # v3
 
+      # The hash-pinned requirements live in this repository's
+      # requirements/ directory and are fetched at the exact commit of
+      # this workflow, so a caller pinning this workflow by SHA also
+      # pins every tool it installs. actionlint 1.7.12 does not know
+      # job.workflow_sha yet, so the step reads it from toJSON(job).
+      - name: Fetch hash-pinned tool requirements
+        if: inputs.package-manager == 'poetry'
+        env:
+          JOB_CONTEXT: ${{ toJSON(job) }}
+          FILES: poetry
+        run: |
+          repo=$(jq -r '.workflow_repository // empty' <<<"$JOB_CONTEXT")
+          sha=$(jq -r '.workflow_sha // empty' <<<"$JOB_CONTEXT")
+          if [ -z "$repo" ] || [ -z "$sha" ]; then
+            echo "::error::job.workflow_sha is unavailable, so the pinned requirements cannot be fetched"
+            exit 1
+          fi
+          dir="$RUNNER_TEMP/pipelines-requirements"
+          mkdir -p "$dir"
+          for f in $FILES; do
+            curl -fsSL --proto '=https' --retry 3 -o "$dir/$f.txt" \
+              "https://raw.githubusercontent.com/$repo/$sha/requirements/$f.txt"
+          done
+
       - name: Install dependencies
+        env:
+          REQUIREMENTS_FILE: ${{ inputs.requirements-file }}
         run: |
           case "${{ inputs.package-manager }}" in
             poetry)
-              pip install --no-cache-dir poetry
+              pip install --no-cache-dir --require-hashes -r "$RUNNER_TEMP/pipelines-requirements/poetry.txt"
               poetry install
               ;;
             uv)
               uv sync --dev
               ;;
             *)
-              pip install --no-cache-dir -e ".[dev]"
+              if [ ! -f "$REQUIREMENTS_FILE" ]; then
+                echo "::error::package-manager pip needs the hash-pinned '$REQUIREMENTS_FILE' (see the requirements-file input)"
+                exit 1
+              fi
+              pip install --no-cache-dir --require-hashes -r "$REQUIREMENTS_FILE"
+              pip install --no-cache-dir --no-deps -e .
               ;;
           esac
 

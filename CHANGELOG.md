@@ -4,7 +4,7 @@ All notable changes to this project will be documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
-## [0.0.3] - Unreleased
+## [0.0.3] - 2026-10-26
 
 ### Fixed
 
@@ -46,6 +46,9 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 - `rust-ci.yml`: the audit job installs a prebuilt `cargo-audit` instead of
   compiling it on every run (#11).
 - `python-ci.yml`: ruff and mypy versions are pinned (#6).
+- This repository's own Validate workflow runs on every pull request, not
+  only on workflow changes: it is a required check, so a docs-only PR
+  could never merge.
 - `scorecard.yml`: ossf/scorecard-action 2.5.0. 2.4.0 pulled its image
   from gcr.io, which now refuses the pull, so every Scorecard run failed.
 - `go-ci.yml`, `security.yml` and `validate.yml` install staticcheck

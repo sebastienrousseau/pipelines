@@ -301,7 +301,9 @@ jobs:
 
       - uses: taiki-e/install-action@1ed3272338f573e042a2e6bca3893aa19f43b47a # v2
         with:
-          tool: cargo-tarpaulin
+          # Pinned: "latest" resolved to 0.35.2 through this action
+          # version, whose profile parser cannot read LLVM 23 profiles.
+          tool: cargo-tarpaulin@0.37.5
 
       - name: Generate coverage
         run: |

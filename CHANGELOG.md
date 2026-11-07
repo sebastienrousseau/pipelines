@@ -34,6 +34,11 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ### Fixed
 
+- **`rust-ci.yml` coverage installs cargo-tarpaulin 0.37.5.** The
+  unpinned install resolved to 0.35.2, whose profile parser rejects the
+  LLVM 23 profiles written by rustc 1.99 ("consistency check for reading
+  counts failed"), so callers using tarpaulin's LLVM engine
+  (staticweaver) failed with "No coverable lines found".
 - `security.yml`: the Python audit of a Poetry project ran `poetry
   export`, which Poetry 2 moved to a plugin, so the step failed with
   "The requested command export does not exist". The poetry lock now

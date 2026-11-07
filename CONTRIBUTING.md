@@ -18,6 +18,23 @@ To resolve the SHA for an action tag:
 gh api repos/actions/checkout/commits/v4 --jq '.sha'
 ```
 
+## Python Tool Locks
+
+Every `pip install` in a workflow uses `--require-hashes` with a lock in
+`requirements/`. The reusable workflows fetch these locks at their own
+commit (`job.workflow_sha`), so they apply to callers too. To add or
+update a tool, edit the `.in` file and regenerate its lock with the
+command in the lock's header, for example:
+
+```bash
+uv pip compile --universal --generate-hashes --python-version 3.9 requirements/poetry.in -o requirements/poetry.txt
+```
+
+Pick releases at least 14 days old (`--exclude-newer`). The
+`ruff-version` and `mypy-version` defaults in `python-ci.yml` must match
+`requirements/ruff.txt` and `requirements/mypy.txt`; `tests/validate.sh`
+checks both.
+
 ## Workflow Requirements
 
 Every reusable workflow must:

@@ -140,15 +140,38 @@ jobs:
         with:
           python-version: '3.12'
 
+      # The hash-pinned requirements live in this repository's
+      # requirements/ directory and are fetched at the exact commit of
+      # this workflow, so a caller pinning this workflow by SHA also
+      # pins every tool it installs. actionlint 1.7.12 does not know
+      # job.workflow_sha yet, so the step reads it from toJSON(job).
+      - name: Fetch hash-pinned tool requirements
+        env:
+          JOB_CONTEXT: ${{ toJSON(job) }}
+          FILES: pip-audit poetry
+        run: |
+          repo=$(jq -r '.workflow_repository // empty' <<<"$JOB_CONTEXT")
+          sha=$(jq -r '.workflow_sha // empty' <<<"$JOB_CONTEXT")
+          if [ -z "$repo" ] || [ -z "$sha" ]; then
+            echo "::error::job.workflow_sha is unavailable, so the pinned requirements cannot be fetched"
+            exit 1
+          fi
+          dir="$RUNNER_TEMP/pipelines-requirements"
+          mkdir -p "$dir"
+          for f in $FILES; do
+            curl -fsSL --proto '=https' --retry 3 -o "$dir/$f.txt" \
+              "https://raw.githubusercontent.com/$repo/$sha/requirements/$f.txt"
+          done
+
       - name: Install tools
-        run: pip install --no-cache-dir pip-audit bandit
+        run: pip install --no-cache-dir --require-hashes -r "$RUNNER_TEMP/pipelines-requirements/pip-audit.txt"
 
       - name: Run pip-audit
         run: |
           if [ -f "requirements.txt" ]; then
             pip-audit -r requirements.txt
           elif [ -f "pyproject.toml" ]; then
-            pip install --no-cache-dir poetry
+            pip install --no-cache-dir --require-hashes -r "$RUNNER_TEMP/pipelines-requirements/poetry.txt"
             poetry export -f requirements.txt --output /tmp/requirements.txt
             pip-audit -r /tmp/requirements.txt
           fi

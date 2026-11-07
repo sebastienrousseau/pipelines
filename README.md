@@ -187,7 +187,9 @@ jobs:
 
 | Control | Implementation |
 | :--- | :--- |
-| **Action pinning** | All 34 actions pinned by commit SHA (not mutable tags) |
+| **Action pinning** | All 39 actions pinned by commit SHA (not mutable tags) |
+| **Tool pinning** | Python tools install with `pip --require-hashes` from the locks in `requirements/`, fetched at the workflow's own commit |
+| **Dependency updates** | Dependabot for actions and the `requirements/` locks, 14-day cooldown |
 | **SLSA Build L3** | `actions/attest-build-provenance` on all release artifacts |
 | **Container signing** | Sigstore/cosign keyless signing via OIDC |
 | **Trusted Publishing** | OIDC for PyPI, npm `--provenance`, crates.io |
@@ -238,6 +240,9 @@ cosign verify --certificate-identity-regexp='.*' \
 | `python-versions` | string | `["3.11", "3.12"]` | JSON array for matrix testing |
 | `run-mypy` | boolean | `true` | Run type checking |
 | `run-ruff` | boolean | `true` | Run ruff linting |
+| `ruff-version` | string | `0.16.1` | ruff version. pip and poetry accept only the hash-pinned version in `requirements/ruff.txt`; uv accepts any, and `''` for the latest |
+| `mypy-version` | string | `2.3.0` | mypy version for `pip`, which accepts only the hash-pinned version in `requirements/mypy.txt` |
+| `requirements-file` | string | `requirements-dev.txt` | Hash-pinned requirements that `pip` installs before the project (`--no-deps -e .`) |
 | `run-coverage` | boolean | `false` | Generate coverage report |
 | `coverage-threshold` | number | `80` | Minimum coverage % |
 | `package-manager` | string | `uv` | poetry, pip, or uv |
@@ -377,7 +382,8 @@ Copy these to your repository:
 <details>
 <summary><b>Security and compliance</b></summary>
 
-- **SHA-pinned actions** across all 12 workflows (34 unique actions)
+- **SHA-pinned actions** across all 13 workflows (39 unique actions)
+- **Hash-pinned Python tools**: every `pip install` uses `--require-hashes`
 - **`permissions: {}`** at workflow level with granular job-level overrides
 - **SLSA Build Level 3** provenance via `actions/attest-build-provenance`
 - **Sigstore cosign** keyless container signing
@@ -407,7 +413,7 @@ Copy these to your repository:
 <details>
 <summary><b>Test coverage</b></summary>
 
-- **83 structural assertions** in `tests/validate.sh`
+- **93 structural assertions** in `tests/validate.sh`
 - **actionlint** — zero errors, zero shellcheck warnings
 - **yamllint** — zero errors across all YAML files
 - **Zero mutable tags** — verified by grep
@@ -427,7 +433,7 @@ actionlint
 # Lint all YAML
 yamllint -d '{extends: default, rules: {line-length: {max: 200}, truthy: disable, comments-indentation: disable, document-start: disable}}' .github/workflows/ templates/
 
-# Run the full test suite (83 assertions)
+# Run the full test suite (93 assertions)
 bash tests/validate.sh
 
 # Resolve an action SHA for pinning

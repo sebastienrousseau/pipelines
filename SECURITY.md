@@ -27,6 +27,7 @@ If you discover a security vulnerability in this repository, please report it re
 
 This repository implements the following security controls:
 
+- **Hash-pinned Python tools**: Every `pip install` in the workflows uses `--require-hashes`, from the locks in `requirements/` (or the caller's own hashed requirements)
 - **SHA-pinned actions**: All GitHub Actions are pinned by commit SHA to prevent supply chain attacks (see [CVE-2025-30066](https://github.com/advisories/ghsa-mrrh-fwg8-r2c3))
 - **Least-privilege permissions**: Every workflow declares `permissions: {}` at the top level with granular job-level overrides
 - **SLSA Build Level 3**: Release artifacts include provenance attestations via `actions/attest-build-provenance`

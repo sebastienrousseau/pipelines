@@ -6,6 +6,20 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [0.0.4] - 2026-11-07
 
+### Security
+
+- **The hashed tool locks carry no known-vulnerable version.** The
+  locks in `requirements/` were regenerated (releases up to 2026-10-24)
+  and now resolve for Python 3.11 and later. That clears the 105
+  Dependabot alerts they raised, among them certifi (critical),
+  urllib3, cryptography, dulwich, filelock, msgpack, pip, poetry and
+  requests. Most fixed releases dropped Python 3.9 and 3.10, both
+  end-of-life, so the old locks pinned vulnerable versions for them.
+- **Breaking**: a caller that runs `python-ci.yml` (pip or poetry),
+  `security.yml`'s Python audit or `docs.yml` on Python 3.9 or 3.10 can
+  no longer install the hashed tools; move to 3.11 or later (the
+  `python-versions` default is already `["3.11", "3.12"]`).
+
 ### Changed
 
 - **Every `pip install` in the workflows is hash-pinned.** The Python

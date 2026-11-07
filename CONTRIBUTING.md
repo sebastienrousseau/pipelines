@@ -27,10 +27,13 @@ update a tool, edit the `.in` file and regenerate its lock with the
 command in the lock's header, for example:
 
 ```bash
-uv pip compile --universal --generate-hashes --python-version 3.9 requirements/poetry.in -o requirements/poetry.txt
+uv pip compile --universal --generate-hashes --python-version 3.11 --exclude-newer YYYY-MM-DD requirements/poetry.in -o requirements/poetry.txt
 ```
 
-Pick releases at least 14 days old (`--exclude-newer`). The
+Pick releases at least 14 days old: `--exclude-newer` is the date 14
+days before today. The locks resolve for Python 3.11 and later; 3.9 and
+3.10 are end-of-life and the fixed releases of several locked packages
+no longer support them. The
 `ruff-version` and `mypy-version` defaults in `python-ci.yml` must match
 `requirements/ruff.txt` and `requirements/mypy.txt`; `tests/validate.sh`
 checks both.

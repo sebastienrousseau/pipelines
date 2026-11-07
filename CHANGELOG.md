@@ -4,10 +4,40 @@ All notable changes to this project will be documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
-## [0.0.4] - Unreleased
+## [0.0.4] - 2026-11-07
+
+### Security
+
+- **The hashed tool locks carry no known-vulnerable version.** The
+  locks in `requirements/` were regenerated (releases up to 2026-10-24)
+  and now resolve for Python 3.11 and later. That clears the 105
+  Dependabot alerts they raised, among them certifi (critical),
+  urllib3, cryptography, dulwich, filelock, msgpack, pip, poetry and
+  requests. Most fixed releases dropped Python 3.9 and 3.10, both
+  end-of-life, so the old locks pinned vulnerable versions for them.
+- **Breaking**: a caller that runs `python-ci.yml` (pip or poetry),
+  `security.yml`'s Python audit or `docs.yml` on Python 3.9 or 3.10 can
+  no longer install the hashed tools; move to 3.11 or later (the
+  `python-versions` default is already `["3.11", "3.12"]`).
 
 ### Changed
 
+- **Actions updated (Dependabot #19, 34 updates)**, most to Node 24:
+  checkout 7.0.1, setup-python/setup-node 7.1.0, setup-go 7.0.0,
+  setup-uv 10.3.2, upload-artifact 7.0.2, download-artifact 8.0.2,
+  upload-pages-artifact 5.0.0, deploy-pages 5.0.1, codeql-action
+  4.39.1, codecov 7.1.1, the docker actions, cosign-installer 4.1.2,
+  action-gh-release 3.0.3, pnpm/action-setup 6.1.0. Every version
+  comment now names the exact release its SHA points at.
+- **Self-hosted runners need 2.327.1 or later** for the Node 24
+  actions; a caller passing an older `runner` fails.
+- `release.yml`: the Rust toolchain steps pass `toolchain: stable`,
+  which dtolnay/rust-toolchain's master requires.
+- `node-ci.yml` and `release.yml`: when `package.json` declares pnpm
+  in `packageManager`, that version is used and `pnpm-version` is
+  ignored; pnpm/action-setup 4 and later fail when the two differ.
+- Container signing installs cosign 3, which stores signatures in the
+  OCI 1.1 bundle format; verify with cosign 3.
 - **Every `pip install` in the workflows is hash-pinned.** The Python
   tools (ruff, mypy, poetry with poetry-plugin-export, pip-audit, bandit,
   MkDocs, Sphinx, yamllint) install with `pip --require-hashes` from
